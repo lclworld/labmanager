@@ -80,6 +80,12 @@
   .stat .lbl { font-size: 0.66rem; color: var(--brown); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
   .stat .hint { font-size: 0.68rem; color: var(--brown); margin-top: 8px; line-height: 1.4; }
   .stat.warn { background: var(--yellow); border-color: var(--yellow); }
+  .stat[data-nav-screen] { cursor: pointer; }
+  .stat[data-nav-screen]:active { background: rgba(255,145,77,0.08); }
+
+  .external-link-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .external-link-card .elc-title { font-weight: 700; font-size: 0.85rem; }
+  .external-link-card .btn { width: auto; margin-top: 0; padding: 10px 16px; white-space: nowrap; flex: none; }
 
   .pill { font-size: 0.62rem; font-weight: 700; padding: 4px 9px; border-radius: 20px; text-transform: uppercase; white-space: nowrap; }
   .pill.ok { background: rgba(91,66,57,0.08); color: var(--brown); }
@@ -242,6 +248,7 @@
     <div class="word">LCL <span>Operations Centre</span></div>
     <div class="screen-label" id="screenLabel">Command Center</div>
     <button class="bell-btn" id="notifBellBtn" title="Notifications">🔔<span class="bell-badge" id="notifBadge" style="display:none;">0</span></button>
+    <button class="bell-btn" id="topbarAdminBtn" title="Admin">🔒</button>
     <div class="mgr-badge" id="mgrBadge" style="display:none;">Manager</div>
     <div class="worker-badge" id="workerBadge" style="display:none;"></div>
   </div>
@@ -251,9 +258,17 @@
     <h2 class="title">Command Center</h2>
     <div class="sync-status" id="syncStatus">Loading…</div>
 
+    <div class="card external-link-card">
+      <div>
+        <div class="elc-title">LCL Inventory</div>
+        <div class="hint" style="margin:2px 0 0;">Stock, batches and formulas live there — opens in a new tab.</div>
+      </div>
+      <a class="btn dark" href="https://lclworld.github.io/lcl-tools/inventory/" target="_blank" rel="noopener noreferrer">Open ↗</a>
+    </div>
+
     <h3 class="section-title">Production</h3>
     <div class="stat-row">
-      <div class="stat">
+      <div class="stat" data-nav-screen="production">
         <div class="stat-head"><div class="lbl">Active Records</div></div>
         <div class="num" id="statProduction">—</div>
         <div class="hint" id="productionHint">— planned · — ready · — blocked · — in production</div>
@@ -262,12 +277,12 @@
 
     <h3 class="section-title">Incoming &amp; Outgoing</h3>
     <div class="stat-row">
-      <div class="stat">
+      <div class="stat" data-nav-screen="deliveries">
         <div class="stat-head"><div class="lbl">Incoming</div></div>
         <div class="num" id="statIncoming">—</div>
         <div class="hint" id="incomingHint">— outstanding</div>
       </div>
-      <div class="stat">
+      <div class="stat" data-nav-screen="deliveries">
         <div class="stat-head"><div class="lbl">Outgoing</div></div>
         <div class="num" id="statOutgoing">—</div>
         <div class="hint" id="outgoingHint">— packaging not ready</div>
@@ -276,7 +291,7 @@
 
     <h3 class="section-title">Purchasing</h3>
     <div class="stat-row">
-      <div class="stat">
+      <div class="stat" data-nav-screen="purchasing">
         <div class="stat-head"><div class="lbl">Open Purchases</div></div>
         <div class="num" id="statPurchases">—</div>
         <div class="hint" id="purchasingHint">— pending · — awaiting payment · — awaiting supplier</div>
@@ -285,7 +300,7 @@
 
     <h3 class="section-title">Director Attention</h3>
     <div class="stat-row">
-      <div class="stat warn">
+      <div class="stat warn" data-nav-screen="directorAttention">
         <div class="stat-head"><div class="lbl">Outstanding</div></div>
         <div class="num" id="statDirectorAttention">—</div>
         <div class="hint" id="directorAttentionHint">Priority and overdue detail land in Phase 3.</div>
@@ -294,7 +309,7 @@
 
     <h3 class="section-title">Team</h3>
     <div class="stat-row">
-      <div class="stat">
+      <div class="stat" data-nav-screen="tasks">
         <div class="stat-head"><div class="lbl">Open Tasks</div></div>
         <div class="num" id="statTasks">—</div>
         <div class="hint" id="teamHint">— due today · — overdue · — assigned to you</div>
@@ -303,7 +318,7 @@
 
     <h3 class="section-title">Calendar</h3>
     <div class="stat-row">
-      <div class="stat">
+      <div class="stat" data-nav-screen="calendar">
         <div class="stat-head"><div class="lbl">Upcoming Events</div></div>
         <div class="num" id="statCalendar">—</div>
         <div class="hint" id="calendarHint">— today</div>
@@ -830,6 +845,12 @@ function renderDashboard() {
   renderCalendar();
   renderPlanner();
 }
+
+// Command Center's stat cards jump straight to the screen they summarize.
+document.getElementById("dashboard").addEventListener("click", (e) => {
+  const card = e.target.closest(".stat[data-nav-screen]");
+  if (card) showScreen(card.dataset.navScreen);
+});
 
 function renderAll() {
   renderDashboard();
@@ -2017,6 +2038,8 @@ function pressAdminPinKey(key) {
       currentTier = "Manager";
       document.getElementById("mgrBadge").style.display = "inline-block";
       document.getElementById("adminNavItem").textContent = "Exit Admin";
+      document.getElementById("topbarAdminBtn").textContent = "🔓";
+      document.getElementById("topbarAdminBtn").title = "Exit Admin";
       adminEnteredPin = "";
       updateAdminPinDots();
       enqueue("logUser", { name: currentWorker, tier: currentTier });
@@ -2035,15 +2058,24 @@ document.getElementById("adminPinPad").addEventListener("click", (e) => {
   pressAdminPinKey(btn.dataset.action || btn.dataset.n);
 });
 document.getElementById("adminBackBtn").addEventListener("click", () => showScreen("dashboard"));
+// Drop back to Employee tier rather than re-prompting for the PIN.
+function exitAdminTier() {
+  currentTier = "Employee";
+  document.getElementById("mgrBadge").style.display = "none";
+  document.getElementById("adminNavItem").textContent = "Admin";
+  document.getElementById("topbarAdminBtn").textContent = "🔒";
+  document.getElementById("topbarAdminBtn").title = "Admin";
+  renderDashboard();
+  showScreen("dashboard");
+}
 document.getElementById("adminNavItem").addEventListener("click", () => {
-  if (currentTier === "Manager") {
-    // Drop back to Employee tier rather than re-prompting for the PIN.
-    currentTier = "Employee";
-    document.getElementById("mgrBadge").style.display = "none";
-    document.getElementById("adminNavItem").textContent = "Admin";
-    renderDashboard();
-    showScreen("dashboard");
-  }
+  if (currentTier === "Manager") exitAdminTier();
+});
+// Sidebar is desktop-only (hidden below 1080px), so the topbar carries the
+// only way into Admin on mobile — same PIN gate either way.
+document.getElementById("topbarAdminBtn").addEventListener("click", () => {
+  if (currentTier === "Manager") exitAdminTier();
+  else showScreen("adminGate");
 });
 
 // ---------- boot ----------
