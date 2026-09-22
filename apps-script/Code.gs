@@ -54,6 +54,8 @@ function doGet(e) {
         return jsonOut({ status: "ok", deliveries: getAllRows("Deliveries") });
       case "getPurchases":
         return jsonOut({ status: "ok", purchases: getAllRows("Purchases") });
+      case "getActivityLog":
+        return jsonOut({ status: "ok", entries: getAllRows("ActivityLog") });
       default:
         return errorOut("Unknown action: " + action);
     }

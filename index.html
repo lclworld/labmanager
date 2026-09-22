@@ -58,7 +58,9 @@
   .topbar .word { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1.05rem; }
   .topbar .word span { color: var(--orange); font-style: italic; }
   .screen-label { margin-left: auto; font-size: 0.66rem; font-weight: 700; color: var(--brown); text-transform: uppercase; letter-spacing: 0.04em; }
-  .mgr-badge { margin-left: auto; font-size: 0.6rem; font-weight: 800; background: var(--black); color: var(--cream); padding: 3px 9px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .bell-btn { position: relative; background: none; border: none; font-size: 1.05rem; cursor: pointer; padding: 4px 6px; line-height: 1; }
+  .bell-badge { position: absolute; top: -2px; right: -2px; background: var(--orange); color: var(--black); font-size: 0.55rem; font-weight: 800; border-radius: 10px; padding: 1px 5px; min-width: 14px; text-align: center; }
+  .mgr-badge { font-size: 0.6rem; font-weight: 800; background: var(--black); color: var(--cream); padding: 3px 9px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
   .worker-badge { font-size: 0.62rem; font-weight: 700; background: rgba(255,145,77,0.16); color: var(--brown); padding: 4px 10px; border-radius: 10px; white-space: nowrap; }
 
   .screen { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 18px 20px calc(96px + env(safe-area-inset-bottom)); display: none; }
@@ -183,6 +185,8 @@
     <div class="nav-item" data-screen="deliveries">Deliveries</div>
     <div class="nav-item" data-screen="purchasing">Purchasing</div>
     <div class="nav-divider"></div>
+    <div class="nav-item" data-screen="history">History &amp; Search</div>
+    <div class="nav-divider"></div>
     <div class="nav-item admin-item" data-screen="adminGate" id="adminNavItem">Admin</div>
     <div class="sync-status" id="syncStatusSidebar"></div>
   </div>
@@ -237,6 +241,7 @@
     <div class="mark">L</div>
     <div class="word">LCL <span>Operations Centre</span></div>
     <div class="screen-label" id="screenLabel">Command Center</div>
+    <button class="bell-btn" id="notifBellBtn" title="Notifications">🔔<span class="bell-badge" id="notifBadge" style="display:none;">0</span></button>
     <div class="mgr-badge" id="mgrBadge" style="display:none;">Manager</div>
     <div class="worker-badge" id="workerBadge" style="display:none;"></div>
   </div>
@@ -528,8 +533,22 @@
     <div class="card"><div id="purchaseList"></div></div>
   </div>
 
+  <!-- HISTORY & SEARCH -->
+  <div class="screen" id="history">
+    <h2 class="title">History &amp; Search</h2>
+    <input class="search" id="historySearch" placeholder="Search by ID, title, client, supplier, status, person...">
+    <div class="filter-row" id="historyTabs">
+      <button data-tab="records" class="active">Records</button>
+      <button data-tab="activity">Activity Log</button>
+    </div>
+    <div class="card"><div id="historyBody"></div></div>
+  </div>
+
   <div class="record-overlay" id="recordOverlay">
     <div class="record-card" id="recordCard"></div>
+  </div>
+  <div class="record-overlay" id="notifOverlay">
+    <div class="record-card" id="notifCard"></div>
   </div>
 
   <div class="tabbar" id="tabbar">
@@ -563,7 +582,7 @@ function loadCache() {
     const raw = JSON.parse(localStorage.getItem(CACHE_KEY));
     if (raw) return raw;
   } catch (e) {}
-  const empty = { counts: {}, tasks: [], calendarEvents: [], directorAttention: [], communications: [], production: [], deliveries: [], purchases: [], lastSynced: null };
+  const empty = { counts: {}, tasks: [], calendarEvents: [], directorAttention: [], communications: [], production: [], deliveries: [], purchases: [], activityLog: [], lastSynced: null };
   localStorage.setItem(CACHE_KEY, JSON.stringify(empty));
   return empty;
 }
@@ -627,7 +646,7 @@ async function trySync() {
       }
       if (i < queue.length - 1) await new Promise(r => setTimeout(r, 250));
     }
-    const [bootstrap, tasksRes, calendarRes, attnRes, commsRes, prodRes, delRes, purRes] = await Promise.all([
+    const [bootstrap, tasksRes, calendarRes, attnRes, commsRes, prodRes, delRes, purRes, logRes] = await Promise.all([
       fetchJSON("getBootstrap"),
       fetchJSON("getTasks"),
       fetchJSON("getCalendar"),
@@ -635,7 +654,8 @@ async function trySync() {
       fetchJSON("getCommunications"),
       fetchJSON("getProduction"),
       fetchJSON("getDeliveries"),
-      fetchJSON("getPurchases")
+      fetchJSON("getPurchases"),
+      fetchJSON("getActivityLog")
     ]);
     const cache = loadCache();
     if (bootstrap.status === "ok") cache.counts = bootstrap.counts;
@@ -646,6 +666,7 @@ async function trySync() {
     if (prodRes.status === "ok") cache.production = prodRes.records;
     if (delRes.status === "ok") cache.deliveries = delRes.deliveries;
     if (purRes.status === "ok") cache.purchases = purRes.purchases;
+    if (logRes.status === "ok") cache.activityLog = logRes.entries;
     cache.lastSynced = new Date().toISOString();
     saveCache(cache);
     renderAll();
@@ -777,6 +798,8 @@ function renderDashboard() {
   const todaysEvents = upcoming.filter(e => e.date === today).length;
   const calHint = document.getElementById("calendarHint");
   if (calHint) calHint.textContent = todaysEvents + " today";
+
+  renderNotifBadge();
 }
 
 function renderAll() {
@@ -789,6 +812,8 @@ function renderAll() {
   renderProduction();
   renderDeliveries();
   renderPurchasing();
+  renderNotifBadge();
+  renderHistory();
 }
 
 // ---------- Tasks ----------
@@ -836,6 +861,9 @@ document.getElementById("taskFilter").addEventListener("click", (e) => {
   taskFilterStatus = btn.dataset.status;
   renderTasks();
 });
+function isTaskOverdue(t) {
+  return t.dueDate && t.dueDate < todayStr() && t.status !== "Completed" && t.status !== "Cancelled";
+}
 function renderTasks() {
   const cache = loadCache();
   const tasks = (cache.tasks || []).filter(t => taskFilterStatus === "all" || t.status === taskFilterStatus);
@@ -848,6 +876,7 @@ function renderTasks() {
         <div class="rr-meta">${escapeHtml(t.category || "General")} · ${escapeHtml(t.assignedTo || "Unassigned")}${t.dueDate ? " · Due " + fmtDate(t.dueDate) : ""}</div>
       </div>
       <div class="rr-right">
+        ${isTaskOverdue(t) ? '<span class="pill status-blocked">OVERDUE</span>' : ""}
         <span class="pill ${statusClass(t.status)}">${escapeHtml(t.status || "Not Started")}</span>
         <span class="pill ${statusClass(t.priority)}">${escapeHtml(t.priority || "Normal")}</span>
       </div>
@@ -1233,7 +1262,40 @@ document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
   ["delClientOrSupplier", "delItems", "delDeliveryDate", "delExpectedTime", "delContact", "delCost", "delNotes"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("deliveryForm").style.display = "none";
   enqueue("createDelivery", fields);
+  createPrepTaskForDelivery(fields);
 });
+
+// Automation (Section 17): a scheduled delivery auto-generates its own
+// prep task — runs once, at creation, so it can never duplicate.
+function createPrepTaskForDelivery(delivery) {
+  const now = new Date().toISOString();
+  const verb = delivery.direction === "Incoming" ? "Receive delivery from " : "Prepare delivery for ";
+  const taskFields = {
+    title: verb + (delivery.clientOrSupplier || "(unnamed)"),
+    description: delivery.items,
+    category: "Delivery",
+    priority: "Normal",
+    assignedTo: "",
+    createdBy: currentWorker,
+    createdDate: now,
+    dueDate: delivery.deliveryDate,
+    completedDate: "",
+    directorAttentionFlag: false,
+    missingInformation: "",
+    notes: "Auto-created from the " + delivery.direction.toLowerCase() + " delivery of " + delivery.items,
+    relatedRecord: delivery.direction + " delivery — " + (delivery.clientOrSupplier || "") + (delivery.deliveryDate ? " (" + fmtDate(delivery.deliveryDate) + ")" : ""),
+    status: "Not Started",
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.tasks = cache.tasks || [];
+  cache.tasks.unshift(Object.assign({ taskId: "TASK-pending-" + Date.now(), pending: true }, taskFields));
+  saveCache(cache);
+  renderTasks();
+  renderPlanner();
+  renderDashboard();
+  enqueue("createTask", taskFields);
+}
 let deliveryFilterDirection = "all";
 document.getElementById("deliveryFilter").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
@@ -1327,6 +1389,152 @@ document.getElementById("purchaseList").addEventListener("click", (e) => {
   const row = e.target.closest(".record-row");
   if (row) openRecordModal("purchase", row.dataset.id);
 });
+
+// ===================================================================
+// AUTOMATIONS / NOTIFICATIONS (Section 17 & 20) — computed fresh from
+// cached data on every render, never persisted as their own records, so
+// there is nothing here that can ever duplicate. In-app only for now,
+// per Section 20 ("in-app first; email/other channels configurable
+// later"). Ranked by how much they need doing something about.
+// ===================================================================
+function computeNotifications() {
+  const cache = loadCache();
+  const today = todayStr();
+  const alerts = [];
+
+  (cache.directorAttention || []).filter(a => a.status === "Open").forEach(a =>
+    alerts.push({ kind: "Director Attention", screen: "directorAttention", type: "attention", id: a.attentionId, text: (a.issue || "").slice(0, 70), severity: (a.priority === "Urgent" || a.priority === "High") ? 3 : 2 }));
+
+  (cache.production || []).filter(p => p.productionStatus === "BLOCKED").forEach(p =>
+    alerts.push({ kind: "Production Blocked", screen: "production", type: "production", id: p.productionId, text: p.product + (p.client ? " — " + p.client : ""), severity: 3 }));
+
+  (cache.purchases || []).filter(p => p.expectedArrival && p.expectedArrival < today && p.status !== "Received" && p.status !== "Completed" && p.status !== "Rejected").forEach(p =>
+    alerts.push({ kind: "Purchase Overdue", screen: "purchasing", type: "purchase", id: p.purchaseId, text: p.item + (p.supplier ? " — " + p.supplier : ""), severity: 2 }));
+
+  (cache.deliveries || []).filter(d => d.deliveryDate && d.deliveryDate <= today && d.status !== "Delivered" && d.status !== "Cancelled").forEach(d =>
+    alerts.push({ kind: "Delivery Needs Action", screen: "deliveries", type: "delivery", id: d.deliveryId, text: d.direction + " — " + (d.clientOrSupplier || ""), severity: 2 }));
+
+  (cache.tasks || []).filter(isTaskOverdue).forEach(t =>
+    alerts.push({ kind: "Task Overdue", screen: "tasks", type: "task", id: t.taskId, text: t.title, severity: 1 }));
+
+  (cache.communications || []).filter(c => c.type === "Supplier Needs Follow-Up" && c.status !== "Resolved" && c.followUpDate && c.followUpDate <= today).forEach(c =>
+    alerts.push({ kind: "Supplier Follow-Up Due", screen: "communications", type: "communication", id: c.communicationId, text: (c.message || "").slice(0, 70), severity: 1 }));
+
+  alerts.sort((a, b) => b.severity - a.severity);
+  return alerts;
+}
+function renderNotifBadge() {
+  const n = computeNotifications().length;
+  const badge = document.getElementById("notifBadge");
+  if (!badge) return;
+  badge.textContent = n;
+  badge.style.display = n ? "inline-block" : "none";
+}
+function renderNotifPanel() {
+  const alerts = computeNotifications();
+  const card = document.getElementById("notifCard");
+  let html = '<button class="close" id="notifCloseBtn">Close ✕</button><h3>Notifications</h3>';
+  if (!alerts.length) {
+    html += '<div class="empty-state">Nothing needs attention right now.</div>';
+  } else {
+    html += alerts.map(a => `
+      <div class="record-row" data-screen="${a.screen}" data-type="${a.type}" data-id="${escapeHtml(a.id)}">
+        <div><div class="rr-title">${escapeHtml(a.kind)}</div><div class="rr-meta">${escapeHtml(a.text)}</div></div>
+      </div>`).join("");
+  }
+  card.innerHTML = html;
+  document.getElementById("notifCloseBtn").addEventListener("click", closeNotifPanel);
+  card.querySelectorAll(".record-row[data-screen]").forEach(row => {
+    row.addEventListener("click", () => {
+      closeNotifPanel();
+      showScreen(row.dataset.screen);
+      openRecordModal(row.dataset.type, row.dataset.id);
+    });
+  });
+}
+function closeNotifPanel() { document.getElementById("notifOverlay").classList.remove("show"); }
+document.getElementById("notifBellBtn").addEventListener("click", () => {
+  renderNotifPanel();
+  document.getElementById("notifOverlay").classList.add("show");
+});
+document.getElementById("notifOverlay").addEventListener("click", (e) => { if (e.target.id === "notifOverlay") closeNotifPanel(); });
+
+// ===================================================================
+// HISTORY & SEARCH (Section 18 & 19) — searches every cached record
+// type by ID/title/client/supplier/category/status/person, and lists
+// the full Activity Log chronologically as its own tab.
+// ===================================================================
+const HISTORY_SOURCES = [
+  { key: "tasks", type: "task", idKey: "taskId", title: r => r.title, meta: r => [r.category, r.assignedTo, r.status].filter(Boolean).join(" · ") },
+  { key: "production", type: "production", idKey: "productionId", title: r => r.product, meta: r => [r.client, r.productionStatus].filter(Boolean).join(" · ") },
+  { key: "deliveries", type: "delivery", idKey: "deliveryId", title: r => r.direction + " — " + (r.clientOrSupplier || ""), meta: r => [r.status, r.deliveryDate].filter(Boolean).join(" · ") },
+  { key: "purchases", type: "purchase", idKey: "purchaseId", title: r => r.item, meta: r => [r.supplier, r.status].filter(Boolean).join(" · ") },
+  { key: "directorAttention", type: "attention", idKey: "attentionId", title: r => (r.issue || "").slice(0, 60), meta: r => [r.category, r.status].filter(Boolean).join(" · ") },
+  { key: "communications", type: "communication", idKey: "communicationId", title: r => (r.message || "").slice(0, 60), meta: r => [r.type, r.status].filter(Boolean).join(" · ") },
+  { key: "calendarEvents", type: "event", idKey: "eventId", title: r => r.title, meta: r => [r.eventType, r.date].filter(Boolean).join(" · ") }
+];
+function recordMatchesQuery(r, idKey, q) {
+  const haystack = [r[idKey], r.title, r.product, r.client, r.item, r.supplier, r.clientOrSupplier, r.issue, r.message, r.status, r.productionStatus, r.category, r.type, r.assignedTo, r.createdBy, r.flaggedBy, r.sender, r.date, r.dueDate, r.plannedDate, r.deliveryDate, r.expectedArrival]
+    .filter(v => v != null).join(" ").toLowerCase();
+  return haystack.includes(q);
+}
+let historyTab = "records";
+document.getElementById("historyTabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#historyTabs button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  historyTab = btn.dataset.tab;
+  renderHistory();
+});
+document.getElementById("historySearch").addEventListener("input", renderHistory);
+function renderHistory() {
+  const body = document.getElementById("historyBody");
+  if (!body) return;
+  const cache = loadCache();
+  const q = (document.getElementById("historySearch").value || "").trim().toLowerCase();
+
+  if (historyTab === "activity") {
+    let entries = (cache.activityLog || []).slice().sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+    if (q) entries = entries.filter(e => [e.recordId, e.recordType, e.user, e.action, e.details, e.newStatus].filter(Boolean).join(" ").toLowerCase().includes(q));
+    if (!entries.length) { body.innerHTML = '<div class="empty-state">No activity logged yet.</div>'; return; }
+    body.innerHTML = entries.slice(0, 200).map(e => `
+      <div class="record-row" style="cursor:default;">
+        <div>
+          <div class="rr-title">${escapeHtml(e.recordType)} ${escapeHtml(e.recordId)} — ${escapeHtml(e.action)}</div>
+          <div class="rr-meta">${escapeHtml(e.user || "")} · ${fmtDate(e.timestamp)}${e.previousStatus || e.newStatus ? " · " + escapeHtml(e.previousStatus || "") + " → " + escapeHtml(e.newStatus || "") : ""}</div>
+        </div>
+      </div>`).join("");
+    return;
+  }
+
+  const results = [];
+  HISTORY_SOURCES.forEach(src => {
+    (cache[src.key] || []).forEach(r => {
+      if (q && !recordMatchesQuery(r, src.idKey, q)) return;
+      results.push({ type: src.type, id: r[src.idKey], title: src.title(r), meta: src.meta(r) });
+    });
+  });
+  if (!results.length) { body.innerHTML = '<div class="empty-state">' + (q ? "No matches." : "Nothing recorded yet.") + '</div>'; return; }
+  body.innerHTML = results.map(r => `
+    <div class="record-row" data-type="${r.type}" data-id="${escapeHtml(r.id)}">
+      <div><div class="rr-title">${escapeHtml(r.title)}</div><div class="rr-meta">${escapeHtml(r.id)} · ${escapeHtml(r.meta)}</div></div>
+    </div>`).join("");
+}
+document.getElementById("historyBody").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row[data-type]");
+  if (row) openRecordModal(row.dataset.type, row.dataset.id);
+});
+
+// Renders a record's own slice of the Activity Log inside its modal —
+// Section 18's "opening a record shows its full history" requirement.
+function buildRecordHistoryHtml(recordId) {
+  const cache = loadCache();
+  const entries = (cache.activityLog || []).filter(e => e.recordId === recordId).sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
+  if (!entries.length) return "";
+  const rows = entries.map(e => kv(fmtDate(e.timestamp), e.action + (e.newStatus ? " → " + e.newStatus : ""))).join("");
+  return `<div class="info-box"><div class="ib-label">History</div>${rows}</div>`;
+}
 
 // ===================================================================
 // READ-ONLY INVENTORY INTEGRATION (Section 21) — calls Inventory's OWN
@@ -1498,6 +1706,8 @@ function buildRecordHtml(type, rec) {
       html += `<div class="manager-only"><div class="mo-label">Manager Approval</div><button class="btn dark" id="approvePurchaseBtn">Approve Purchase</button></div>`;
     }
   }
+  const idKeys = { task: "taskId", event: "eventId", attention: "attentionId", communication: "communicationId", production: "productionId", delivery: "deliveryId", purchase: "purchaseId" };
+  if (idKeys[type]) html += buildRecordHistoryHtml(rec[idKeys[type]]);
   return html;
 }
 function applyLocalPatch(arrayKey, idKey, idVal, patch) {
@@ -1583,6 +1793,7 @@ function showScreen(name) {
   const navEl = document.querySelector('.sidebar .nav-item[data-screen="' + name + '"]');
   if (label && navEl) label.textContent = navEl.textContent;
   if (label && name === "adminGate") label.textContent = "Admin";
+  if (name === "history") renderHistory();
 }
 
 document.querySelectorAll(".sidebar .nav-item[data-screen], .tab[data-screen]").forEach(el => {
