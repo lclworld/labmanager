@@ -130,6 +130,17 @@
   .planner-group-title { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brown); margin: 18px 0 8px; }
   .planner-group-title:first-of-type { margin-top: 0; }
 
+  .inv-row { display: flex; justify-content: space-between; align-items: center; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+  .inv-row:last-child { border-bottom: none; }
+  .inv-row .inv-meta { color: var(--brown); font-size: 0.68rem; margin-top: 1px; }
+  .autocomplete-list { margin-top: 4px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  .autocomplete-list div { padding: 9px 12px; font-size: 0.82rem; cursor: pointer; border-bottom: 1px solid var(--border); background: var(--white); }
+  .autocomplete-list div:last-child { border-bottom: none; }
+  .autocomplete-list div:hover { background: rgba(255,145,77,0.1); }
+  .blocker-banner { background: var(--yellow); border-radius: 10px; padding: 10px 12px; font-size: 0.78rem; font-weight: 600; margin: 10px 0; }
+  .info-box { border-top: 1.5px dashed var(--border); margin-top: 14px; padding-top: 14px; }
+  .info-box .ib-label { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--brown); margin-bottom: 8px; }
+
   .tabbar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); display: flex; padding: 8px 4px 14px; overflow-x: auto; }
   .tab { flex: 1; min-width: 64px; text-align: center; font-size: 0.58rem; font-weight: 600; color: var(--brown); padding: 6px 2px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.02em; border-radius: 10px; }
   .tab .ic { font-size: 1.05rem; display: block; margin-bottom: 2px; }
@@ -238,27 +249,32 @@
     <h3 class="section-title">Production</h3>
     <div class="stat-row">
       <div class="stat">
-        <div class="stat-head"><div class="lbl">Total Records</div></div>
+        <div class="stat-head"><div class="lbl">Active Records</div></div>
         <div class="num" id="statProduction">—</div>
-        <div class="hint">Planned · Ready · Blocked · Completed breakdown lands in Phase 4, once Production tracking is built.</div>
+        <div class="hint" id="productionHint">— planned · — ready · — blocked · — in production</div>
       </div>
     </div>
 
     <h3 class="section-title">Incoming &amp; Outgoing</h3>
     <div class="stat-row">
       <div class="stat">
-        <div class="stat-head"><div class="lbl">Total Deliveries</div></div>
-        <div class="num" id="statDeliveries">—</div>
-        <div class="hint">Incoming/outgoing split, packaging readiness and delivery status land in Phase 4.</div>
+        <div class="stat-head"><div class="lbl">Incoming</div></div>
+        <div class="num" id="statIncoming">—</div>
+        <div class="hint" id="incomingHint">— outstanding</div>
+      </div>
+      <div class="stat">
+        <div class="stat-head"><div class="lbl">Outgoing</div></div>
+        <div class="num" id="statOutgoing">—</div>
+        <div class="hint" id="outgoingHint">— packaging not ready</div>
       </div>
     </div>
 
     <h3 class="section-title">Purchasing</h3>
     <div class="stat-row">
       <div class="stat">
-        <div class="stat-head"><div class="lbl">Total Purchases</div></div>
+        <div class="stat-head"><div class="lbl">Open Purchases</div></div>
         <div class="num" id="statPurchases">—</div>
-        <div class="hint">Pending · Awaiting payment · Awaiting supplier · Arrived breakdown lands in Phase 4.</div>
+        <div class="hint" id="purchasingHint">— pending · — awaiting payment · — awaiting supplier</div>
       </div>
     </div>
 
@@ -407,10 +423,110 @@
     <div id="commBody"></div>
   </div>
 
-  <!-- PLACEHOLDER SCREENS: built out in the phase noted on each card -->
-  <div class="screen" id="production"><h2 class="title">Production</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Production Workflow</div>Readiness checklist, status tracking, and the read-only Inventory reference lookup.</div></div>
-  <div class="screen" id="deliveries"><h2 class="title">Deliveries</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Incoming &amp; Outgoing Movement</div>Delivery tracking for both directions.</div></div>
-  <div class="screen" id="purchasing"><h2 class="title">Purchasing</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Purchasing Workflow</div>Need → Approval → Ordered → Paid → Received lifecycle.</div></div>
+  <!-- PRODUCTION -->
+  <div class="screen" id="production">
+    <h2 class="title">Production</h2>
+    <button class="btn primary" id="newProductionBtn">+ New Production Record</button>
+    <div class="card" id="productionForm" style="display:none;">
+      <div class="form-grid">
+        <div><label>Client</label><input id="prodClient" placeholder="Optional"></div>
+        <div><label>Product</label><input id="prodProduct" placeholder="Product name"></div>
+        <div><label>Batch Size</label><input id="prodBatchSize" placeholder="e.g. 5kg"></div>
+        <div><label>Planned Date</label><input type="date" id="prodPlannedDate"></div>
+        <div><label>Assigned Staff</label><input id="prodAssignedStaff" placeholder="Optional"></div>
+        <div>
+          <label>Inventory Reference</label>
+          <input id="prodInventoryRef" placeholder="Batch/plan name from Inventory" autocomplete="off">
+        </div>
+      </div>
+      <div id="prodInventoryRefHint"></div>
+      <div class="form-grid">
+        <div><label>Packaging Readiness</label><select id="prodPackagingReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+        <div><label>Label Readiness</label><select id="prodLabelReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+        <div><label>Box Readiness</label><select id="prodBoxReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+        <div><label>Batch Sheet Status</label><select id="prodBatchSheetStatus"><option>Prepared</option><option>Not Prepared</option></select></div>
+        <div><label>SOP Status</label><select id="prodSopStatus"><option>Available</option><option>Not Available</option></select></div>
+      </div>
+      <label>Notes</label><textarea id="prodNotes" placeholder="Optional"></textarea>
+      <button class="btn primary" id="saveProductionBtn">Save Production Record</button>
+    </div>
+
+    <h3 class="section-title">Ingredient &amp; Batch Lookup <span class="hint" style="margin:0; display:inline;">— read-only, from LCL Inventory</span></h3>
+    <div class="card">
+      <div class="sync-status" id="inventoryStatus">Loading…</div>
+      <input class="search" id="inventorySearch" placeholder="Search Inventory ingredients and packaging...">
+      <div id="inventoryResults"></div>
+    </div>
+
+    <div class="filter-row" id="productionFilter">
+      <button data-status="all" class="active">All</button>
+      <button data-status="READY">Ready</button>
+      <button data-status="BLOCKED">Blocked</button>
+      <button data-status="WAITING FOR DIRECTOR">Waiting for Director</button>
+      <button data-status="WAITING FOR PURCHASE">Waiting for Purchase</button>
+      <button data-status="IN PRODUCTION">In Production</button>
+      <button data-status="QC">QC</button>
+      <button data-status="COMPLETED">Completed</button>
+    </div>
+    <div class="card"><div id="productionList"></div></div>
+  </div>
+
+  <!-- DELIVERIES -->
+  <div class="screen" id="deliveries">
+    <h2 class="title">Deliveries</h2>
+    <button class="btn primary" id="newDeliveryBtn">+ New Delivery</button>
+    <div class="card" id="deliveryForm" style="display:none;">
+      <label>Direction</label><select id="delDirection"><option>Incoming</option><option>Outgoing</option></select>
+      <label>Client or Supplier</label><input id="delClientOrSupplier" placeholder="Name">
+      <label>Items</label><textarea id="delItems" placeholder="What's being delivered"></textarea>
+      <div class="form-grid">
+        <div><label>Delivery Date</label><input type="date" id="delDeliveryDate"></div>
+        <div><label>Expected Time</label><input type="time" id="delExpectedTime"></div>
+        <div><label>Contact</label><input id="delContact" placeholder="Optional"></div>
+        <div><label>Cost</label><input id="delCost" placeholder="Optional"></div>
+        <div><label>Packaging Status</label><select id="delPackagingStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+        <div><label>Label Status</label><select id="delLabelStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+        <div><label>Box Status</label><select id="delBoxStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+        <div><label>Payment Status</label><select id="delPaymentStatus"><option>Pending</option><option>Paid</option><option>N/A</option></select></div>
+      </div>
+      <label>Notes</label><textarea id="delNotes" placeholder="Optional"></textarea>
+      <button class="btn primary" id="saveDeliveryBtn">Save Delivery</button>
+    </div>
+    <div class="filter-row" id="deliveryFilter">
+      <button data-direction="all" class="active">All</button>
+      <button data-direction="Incoming">Incoming</button>
+      <button data-direction="Outgoing">Outgoing</button>
+    </div>
+    <div class="card"><div id="deliveryList"></div></div>
+  </div>
+
+  <!-- PURCHASING -->
+  <div class="screen" id="purchasing">
+    <h2 class="title">Purchasing</h2>
+    <button class="btn primary" id="newPurchaseBtn">+ New Purchase</button>
+    <div class="card" id="purchaseForm" style="display:none;">
+      <div class="form-grid">
+        <div><label>Supplier</label><input id="purSupplier" placeholder="Supplier name"></div>
+        <div><label>Item</label><input id="purItem" placeholder="What's needed"></div>
+        <div><label>Category</label><input id="purCategory" placeholder="e.g. Packaging"></div>
+        <div><label>Quantity</label><input id="purQuantity" placeholder="Optional"></div>
+        <div><label>Amount</label><input id="purAmount" placeholder="Optional"></div>
+        <div><label>Expected Arrival</label><input type="date" id="purExpectedArrival"></div>
+        <div><label>Responsible Person</label><input id="purResponsiblePerson" placeholder="Optional"></div>
+      </div>
+      <label>Notes</label><textarea id="purNotes" placeholder="Optional"></textarea>
+      <button class="btn primary" id="savePurchaseBtn">Save Purchase</button>
+    </div>
+    <div class="filter-row" id="purchaseFilter">
+      <button data-status="all" class="active">All</button>
+      <button data-status="Need Identified">Need Identified</button>
+      <button data-status="Pending Approval">Pending Approval</button>
+      <button data-status="Ordered">Ordered</button>
+      <button data-status="Awaiting Supplier">Awaiting Supplier</button>
+      <button data-status="Received">Received</button>
+    </div>
+    <div class="card"><div id="purchaseList"></div></div>
+  </div>
 
   <div class="record-overlay" id="recordOverlay">
     <div class="record-card" id="recordCard"></div>
@@ -447,7 +563,7 @@ function loadCache() {
     const raw = JSON.parse(localStorage.getItem(CACHE_KEY));
     if (raw) return raw;
   } catch (e) {}
-  const empty = { counts: {}, tasks: [], calendarEvents: [], directorAttention: [], communications: [], lastSynced: null };
+  const empty = { counts: {}, tasks: [], calendarEvents: [], directorAttention: [], communications: [], production: [], deliveries: [], purchases: [], lastSynced: null };
   localStorage.setItem(CACHE_KEY, JSON.stringify(empty));
   return empty;
 }
@@ -511,12 +627,15 @@ async function trySync() {
       }
       if (i < queue.length - 1) await new Promise(r => setTimeout(r, 250));
     }
-    const [bootstrap, tasksRes, calendarRes, attnRes, commsRes] = await Promise.all([
+    const [bootstrap, tasksRes, calendarRes, attnRes, commsRes, prodRes, delRes, purRes] = await Promise.all([
       fetchJSON("getBootstrap"),
       fetchJSON("getTasks"),
       fetchJSON("getCalendar"),
       fetchJSON("getDirectorAttention"),
-      fetchJSON("getCommunications")
+      fetchJSON("getCommunications"),
+      fetchJSON("getProduction"),
+      fetchJSON("getDeliveries"),
+      fetchJSON("getPurchases")
     ]);
     const cache = loadCache();
     if (bootstrap.status === "ok") cache.counts = bootstrap.counts;
@@ -524,6 +643,9 @@ async function trySync() {
     if (calendarRes.status === "ok") cache.calendarEvents = calendarRes.events;
     if (attnRes.status === "ok") cache.directorAttention = attnRes.items;
     if (commsRes.status === "ok") cache.communications = commsRes.items;
+    if (prodRes.status === "ok") cache.production = prodRes.records;
+    if (delRes.status === "ok") cache.deliveries = delRes.deliveries;
+    if (purRes.status === "ok") cache.purchases = purRes.purchases;
     cache.lastSynced = new Date().toISOString();
     saveCache(cache);
     renderAll();
@@ -568,6 +690,7 @@ function renderSyncStatus() {
 window.addEventListener("online", trySync);
 window.addEventListener("offline", renderSyncStatus);
 setInterval(trySync, 60000);
+setInterval(() => { if (appUnlocked) syncInventory(); }, 120000);
 
 // ---------- shared helpers ----------
 function escapeHtml(s) {
@@ -587,11 +710,41 @@ function todayStr() { return new Date().toISOString().slice(0, 10); }
 // ---------- Command Center rendering ----------
 function renderDashboard() {
   const cache = loadCache();
-  const counts = cache.counts || {};
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = (val === undefined || val === null) ? "—" : val; };
-  set("statProduction", counts.Production);
-  set("statDeliveries", counts.Deliveries);
-  set("statPurchases", counts.Purchases);
+
+  const production = cache.production || [];
+  const activeProduction = production.filter(p => p.productionStatus !== "COMPLETED");
+  set("statProduction", activeProduction.length);
+  const planned = production.filter(p => p.productionStatus === "READY" || !p.productionStatus).length;
+  const ready = production.filter(p => p.productionStatus === "READY").length;
+  const blocked = production.filter(p => p.productionStatus === "BLOCKED").length;
+  const inProduction = production.filter(p => p.productionStatus === "IN PRODUCTION").length;
+  const prodHint = document.getElementById("productionHint");
+  if (prodHint) prodHint.textContent = planned + " planned · " + ready + " ready · " + blocked + " blocked · " + inProduction + " in production";
+
+  const deliveries = cache.deliveries || [];
+  const incoming = deliveries.filter(d => d.direction === "Incoming");
+  const outgoing = deliveries.filter(d => d.direction === "Outgoing");
+  const incomingOpen = incoming.filter(d => d.status !== "Delivered" && d.status !== "Cancelled");
+  const outgoingOpen = outgoing.filter(d => d.status !== "Delivered" && d.status !== "Cancelled");
+  set("statIncoming", incomingOpen.length);
+  set("statOutgoing", outgoingOpen.length);
+  const incomingHint = document.getElementById("incomingHint");
+  if (incomingHint) incomingHint.textContent = incomingOpen.length + " outstanding";
+  const outgoingHint = document.getElementById("outgoingHint");
+  if (outgoingHint) {
+    const notReady = outgoingOpen.filter(d => d.packagingStatus === "Missing" || d.labelStatus === "Missing" || d.boxStatus === "Missing").length;
+    outgoingHint.textContent = notReady + " packaging not ready";
+  }
+
+  const purchases = cache.purchases || [];
+  const openPurchases = purchases.filter(p => p.status !== "Completed" && p.status !== "Rejected");
+  set("statPurchases", openPurchases.length);
+  const pending = openPurchases.filter(p => p.status === "Need Identified" || p.status === "Pending Approval").length;
+  const awaitingPayment = openPurchases.filter(p => p.ordered === "Yes" && p.paid !== "Yes").length;
+  const awaitingSupplier = openPurchases.filter(p => p.status === "Awaiting Supplier").length;
+  const purHint = document.getElementById("purchasingHint");
+  if (purHint) purHint.textContent = pending + " pending · " + awaitingPayment + " awaiting payment · " + awaitingSupplier + " awaiting supplier";
 
   const attention = cache.directorAttention || [];
   const outstanding = attention.filter(a => a.status === "Open");
@@ -633,6 +786,9 @@ function renderAll() {
   renderPlanner();
   renderDirectorAttention();
   renderCommunications();
+  renderProduction();
+  renderDeliveries();
+  renderPurchasing();
 }
 
 // ---------- Tasks ----------
@@ -940,6 +1096,314 @@ document.getElementById("commBody").addEventListener("click", (e) => {
   if (row) openRecordModal("communication", row.dataset.id);
 });
 
+// ---------- Production ----------
+function computeInitialProductionStatus(fields) {
+  const missing = [fields.packagingReadiness, fields.labelReadiness, fields.boxReadiness].includes("Missing");
+  const notPrepared = fields.batchSheetStatus === "Not Prepared" || fields.sopStatus === "Not Available";
+  return (missing || notPrepared) ? "BLOCKED" : "READY";
+}
+document.getElementById("newProductionBtn").addEventListener("click", () => {
+  const form = document.getElementById("productionForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveProductionBtn").addEventListener("click", () => {
+  const product = document.getElementById("prodProduct").value.trim();
+  if (!product) { document.getElementById("prodProduct").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    client: document.getElementById("prodClient").value.trim(),
+    product: product,
+    inventoryReference: document.getElementById("prodInventoryRef").value.trim(),
+    batchSize: document.getElementById("prodBatchSize").value.trim(),
+    plannedDate: document.getElementById("prodPlannedDate").value,
+    assignedStaff: document.getElementById("prodAssignedStaff").value.trim(),
+    packagingReadiness: document.getElementById("prodPackagingReadiness").value,
+    labelReadiness: document.getElementById("prodLabelReadiness").value,
+    boxReadiness: document.getElementById("prodBoxReadiness").value,
+    batchSheetStatus: document.getElementById("prodBatchSheetStatus").value,
+    sopStatus: document.getElementById("prodSopStatus").value,
+    qcStatus: "Not Started",
+    fillingStatus: "Not Started",
+    finalStatus: "Pending",
+    blocker: "",
+    directorReviewStatus: "Not Reviewed",
+    notes: document.getElementById("prodNotes").value.trim(),
+    createdBy: currentWorker,
+    createdDate: now,
+    lastUpdated: now
+  };
+  fields.productionStatus = computeInitialProductionStatus(fields);
+  if (fields.productionStatus === "BLOCKED") {
+    fields.blocker = "Auto-flagged at creation: packaging/label/box, batch sheet, or SOP not ready.";
+  }
+  const cache = loadCache();
+  cache.production = cache.production || [];
+  cache.production.unshift(Object.assign({ productionId: "PROD-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderProduction();
+  renderDashboard();
+  ["prodClient", "prodProduct", "prodInventoryRef", "prodBatchSize", "prodPlannedDate", "prodAssignedStaff", "prodNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("productionForm").style.display = "none";
+  document.getElementById("prodInventoryRefHint").innerHTML = "";
+  enqueue("createProduction", fields);
+});
+let productionFilterStatus = "all";
+document.getElementById("productionFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#productionFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  productionFilterStatus = btn.dataset.status;
+  renderProduction();
+});
+function renderProduction() {
+  const cache = loadCache();
+  const records = (cache.production || []).filter(p => productionFilterStatus === "all" || p.productionStatus === productionFilterStatus);
+  const list = document.getElementById("productionList");
+  if (!list) return;
+  if (!records.length) { list.innerHTML = '<div class="empty-state">No production records yet.</div>'; return; }
+  list.innerHTML = records.map(p => `
+    <div class="record-row" data-type="production" data-id="${escapeHtml(p.productionId)}">
+      <div>
+        <div class="rr-title">${escapeHtml(p.product)}${p.client ? " — " + escapeHtml(p.client) : ""}</div>
+        <div class="rr-meta">${p.batchSize ? escapeHtml(p.batchSize) + " · " : ""}${p.plannedDate ? "Planned " + fmtDate(p.plannedDate) : "No planned date"}${p.assignedStaff ? " · " + escapeHtml(p.assignedStaff) : ""}</div>
+      </div>
+      <div class="rr-right"><span class="pill ${statusClass(p.productionStatus)}">${escapeHtml(p.productionStatus || "READY")}</span></div>
+    </div>`).join("");
+}
+document.getElementById("productionList").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal("production", row.dataset.id);
+});
+
+// Inventory reference autocomplete against cached Inventory batches/plans.
+document.getElementById("prodInventoryRef").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  const hint = document.getElementById("prodInventoryRefHint");
+  if (!q) { hint.innerHTML = ""; return; }
+  const cache = loadInventoryCache();
+  const names = [].concat(cache.batches || [], cache.plans || [])
+    .map(b => b.name || b.productCode || "")
+    .filter(n => n && n.toLowerCase().includes(q));
+  const unique = [...new Set(names)].slice(0, 6);
+  if (!unique.length) { hint.innerHTML = ""; return; }
+  hint.innerHTML = '<div class="autocomplete-list">' + unique.map(n => `<div data-name="${escapeHtml(n)}">${escapeHtml(n)}</div>`).join("") + "</div>";
+});
+document.getElementById("prodInventoryRefHint").addEventListener("click", (e) => {
+  const item = e.target.closest("[data-name]");
+  if (!item) return;
+  document.getElementById("prodInventoryRef").value = item.dataset.name;
+  document.getElementById("prodInventoryRefHint").innerHTML = "";
+});
+
+// ---------- Deliveries ----------
+document.getElementById("newDeliveryBtn").addEventListener("click", () => {
+  const form = document.getElementById("deliveryForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
+  const items = document.getElementById("delItems").value.trim();
+  if (!items) { document.getElementById("delItems").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    direction: document.getElementById("delDirection").value,
+    clientOrSupplier: document.getElementById("delClientOrSupplier").value.trim(),
+    items: items,
+    deliveryDate: document.getElementById("delDeliveryDate").value,
+    expectedTime: document.getElementById("delExpectedTime").value,
+    contact: document.getElementById("delContact").value.trim(),
+    packagingStatus: document.getElementById("delPackagingStatus").value,
+    labelStatus: document.getElementById("delLabelStatus").value,
+    boxStatus: document.getElementById("delBoxStatus").value,
+    clientConfirmation: "No",
+    paymentStatus: document.getElementById("delPaymentStatus").value,
+    cost: document.getElementById("delCost").value.trim(),
+    status: "Scheduled",
+    notes: document.getElementById("delNotes").value.trim(),
+    createdBy: currentWorker,
+    createdDate: now,
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.deliveries = cache.deliveries || [];
+  cache.deliveries.unshift(Object.assign({ deliveryId: "DEL-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDeliveries();
+  renderDashboard();
+  ["delClientOrSupplier", "delItems", "delDeliveryDate", "delExpectedTime", "delContact", "delCost", "delNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("deliveryForm").style.display = "none";
+  enqueue("createDelivery", fields);
+});
+let deliveryFilterDirection = "all";
+document.getElementById("deliveryFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#deliveryFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  deliveryFilterDirection = btn.dataset.direction;
+  renderDeliveries();
+});
+function renderDeliveries() {
+  const cache = loadCache();
+  const items = (cache.deliveries || []).filter(d => deliveryFilterDirection === "all" || d.direction === deliveryFilterDirection);
+  const list = document.getElementById("deliveryList");
+  if (!list) return;
+  if (!items.length) { list.innerHTML = '<div class="empty-state">No deliveries yet.</div>'; return; }
+  list.innerHTML = items.map(d => `
+    <div class="record-row" data-type="delivery" data-id="${escapeHtml(d.deliveryId)}">
+      <div>
+        <div class="rr-title">${escapeHtml(d.direction)} · ${escapeHtml(d.clientOrSupplier || "Unnamed")}</div>
+        <div class="rr-meta">${escapeHtml((d.items || "").slice(0, 60))}${d.deliveryDate ? " · " + fmtDate(d.deliveryDate) : ""}</div>
+      </div>
+      <div class="rr-right"><span class="pill ${statusClass(d.status)}">${escapeHtml(d.status || "Scheduled")}</span></div>
+    </div>`).join("");
+}
+document.getElementById("deliveryList").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal("delivery", row.dataset.id);
+});
+
+// ---------- Purchasing ----------
+document.getElementById("newPurchaseBtn").addEventListener("click", () => {
+  const form = document.getElementById("purchaseForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("savePurchaseBtn").addEventListener("click", () => {
+  const item = document.getElementById("purItem").value.trim();
+  if (!item) { document.getElementById("purItem").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    supplier: document.getElementById("purSupplier").value.trim(),
+    item: item,
+    category: document.getElementById("purCategory").value.trim(),
+    quantity: document.getElementById("purQuantity").value.trim(),
+    amount: document.getElementById("purAmount").value.trim(),
+    ordered: "No",
+    paid: "No",
+    expectedArrival: document.getElementById("purExpectedArrival").value,
+    received: "No",
+    responsiblePerson: document.getElementById("purResponsiblePerson").value.trim(),
+    status: "Need Identified",
+    notes: document.getElementById("purNotes").value.trim(),
+    createdBy: currentWorker,
+    createdDate: now,
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.purchases = cache.purchases || [];
+  cache.purchases.unshift(Object.assign({ purchaseId: "PUR-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderPurchasing();
+  renderDashboard();
+  ["purSupplier", "purItem", "purCategory", "purQuantity", "purAmount", "purExpectedArrival", "purResponsiblePerson", "purNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("purchaseForm").style.display = "none";
+  enqueue("createPurchase", fields);
+});
+let purchaseFilterStatus = "all";
+document.getElementById("purchaseFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#purchaseFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  purchaseFilterStatus = btn.dataset.status;
+  renderPurchasing();
+});
+function renderPurchasing() {
+  const cache = loadCache();
+  const items = (cache.purchases || []).filter(p => purchaseFilterStatus === "all" || p.status === purchaseFilterStatus);
+  const list = document.getElementById("purchaseList");
+  if (!list) return;
+  if (!items.length) { list.innerHTML = '<div class="empty-state">No purchases yet.</div>'; return; }
+  list.innerHTML = items.map(p => `
+    <div class="record-row" data-type="purchase" data-id="${escapeHtml(p.purchaseId)}">
+      <div>
+        <div class="rr-title">${escapeHtml(p.item)}${p.supplier ? " — " + escapeHtml(p.supplier) : ""}</div>
+        <div class="rr-meta">${p.quantity ? escapeHtml(p.quantity) + " · " : ""}${p.expectedArrival ? "Expected " + fmtDate(p.expectedArrival) : "No expected date"}</div>
+      </div>
+      <div class="rr-right"><span class="pill ${statusClass(p.status)}">${escapeHtml(p.status || "Need Identified")}</span></div>
+    </div>`).join("");
+}
+document.getElementById("purchaseList").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal("purchase", row.dataset.id);
+});
+
+// ===================================================================
+// READ-ONLY INVENTORY INTEGRATION (Section 21) — calls Inventory's OWN
+// existing Apps Script deployment directly, the same two actions its own
+// frontend uses. Never writes here, never touches any other Inventory
+// action, never opens or redeploys Inventory's script. If Inventory is
+// ever redeployed, this URL needs updating to match its new one.
+// ===================================================================
+const INVENTORY_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxhyrjfKt3VB5MBHB8dGOfFfGI_O7TJvrUCsaB-oOCsQ1mAvfxqv7HMpgRVbYPItL-z/exec";
+const INVENTORY_CACHE_KEY = "lcl_oc_inventory_cache_v1";
+
+function loadInventoryCache() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(INVENTORY_CACHE_KEY));
+    if (raw) return raw;
+  } catch (e) {}
+  return { ingredients: [], containers: [], batches: [], plans: [], lastSynced: null, lastError: null };
+}
+function saveInventoryCache(c) { localStorage.setItem(INVENTORY_CACHE_KEY, JSON.stringify(c)); }
+
+async function syncInventory() {
+  if (!navigator.onLine) { renderInventoryStatus(); return; }
+  const cache = loadInventoryCache();
+  try {
+    const [ingRes, prodRes] = await Promise.all([
+      fetch(INVENTORY_SCRIPT_URL + "?action=getIngredients").then(r => r.json()),
+      fetch(INVENTORY_SCRIPT_URL + "?action=getProductionData").then(r => r.json())
+    ]);
+    if (ingRes.status === "ok") { cache.ingredients = ingRes.ingredients || []; cache.containers = ingRes.containers || []; }
+    else throw new Error(ingRes.message || "getIngredients failed");
+    if (prodRes.status === "ok") { cache.batches = prodRes.batches || []; cache.plans = prodRes.plans || []; }
+    else throw new Error(prodRes.message || "getProductionData failed");
+    cache.lastSynced = new Date().toISOString();
+    cache.lastError = null;
+  } catch (err) {
+    // Never fabricate: keep whatever was cached before, just mark it stale.
+    cache.lastError = err.message;
+  }
+  saveInventoryCache(cache);
+  renderInventoryStatus();
+  renderInventoryLookup();
+}
+function renderInventoryStatus() {
+  const cache = loadInventoryCache();
+  const el = document.getElementById("inventoryStatus");
+  if (!el) return;
+  if (cache.lastError && !cache.lastSynced) {
+    el.textContent = "⚠ Inventory not reachable yet: " + cache.lastError;
+    el.classList.add("offline");
+  } else if (cache.lastError) {
+    el.textContent = "⚠ Inventory data may be stale (last synced " + timeAgo(cache.lastSynced) + ") — " + cache.lastError;
+    el.classList.add("offline");
+  } else if (cache.lastSynced) {
+    el.textContent = "Inventory data synced " + timeAgo(cache.lastSynced);
+    el.classList.remove("offline");
+  } else {
+    el.textContent = "Inventory data not synced yet";
+    el.classList.remove("offline");
+  }
+}
+function renderInventoryLookup() {
+  const results = document.getElementById("inventoryResults");
+  if (!results) return;
+  const cache = loadInventoryCache();
+  const q = (document.getElementById("inventorySearch").value || "").trim().toLowerCase();
+  let items = cache.ingredients || [];
+  if (q) items = items.filter(i => (i.name || "").toLowerCase().includes(q) || (i.code || "").toLowerCase().includes(q));
+  items = items.slice(0, 30);
+  if (!items.length) { results.innerHTML = '<div class="empty-state">' + (cache.ingredients.length ? "No matches." : "No Inventory data cached yet.") + '</div>'; return; }
+  results.innerHTML = items.map(i => `
+    <div class="inv-row">
+      <div><div>${escapeHtml(i.name)}</div><div class="inv-meta">${escapeHtml(i.code || "")} · ${escapeHtml(i.type || "Ingredient")}</div></div>
+      <span class="pill ${(i.qty || 0) > 0 ? "ok" : "low"}">${i.qty != null ? i.qty : "—"}${i.type === "Packaging" ? "" : "g"}</span>
+    </div>`).join("");
+}
+document.getElementById("inventorySearch").addEventListener("input", renderInventoryLookup);
+
 // ---------- shared record modal (Task / Event / Director Attention / Communication) ----------
 function findRecord(type, id) {
   const cache = loadCache();
@@ -947,6 +1411,26 @@ function findRecord(type, id) {
   if (type === "event") return (cache.calendarEvents || []).find(e => e.eventId === id);
   if (type === "attention") return (cache.directorAttention || []).find(a => a.attentionId === id);
   if (type === "communication") return (cache.communications || []).find(c => c.communicationId === id);
+  if (type === "production") return (cache.production || []).find(p => p.productionId === id);
+  if (type === "delivery") return (cache.deliveries || []).find(d => d.deliveryId === id);
+  if (type === "purchase") return (cache.purchases || []).find(p => p.purchaseId === id);
+}
+function buildInventorySufficiencyHtml(reference) {
+  if (!reference) return "";
+  const cache = loadInventoryCache();
+  const match = [].concat(cache.batches || [], cache.plans || []).find(b => (b.name || b.productCode || "").toLowerCase() === reference.toLowerCase());
+  if (!match) return `<div class="info-box"><div class="ib-label">Inventory Match</div>Not found in cached Inventory data${cache.lastSynced ? " (last synced " + timeAgo(cache.lastSynced) + ")" : " (not synced yet)"}.</div>`;
+  const rows = match.rows || [];
+  if (!rows.length) return `<div class="info-box"><div class="ib-label">Inventory Match: ${escapeHtml(match.name || match.productCode || "")}</div>No ingredient rows cached for it.</div>`;
+  const byCode = {};
+  (cache.ingredients || []).forEach(i => { byCode[i.code] = i; });
+  const rowsHtml = rows.map(r => {
+    const need = r.proposedQty != null ? r.proposedQty : (r.qty != null ? r.qty : r.amount);
+    const have = byCode[r.code] ? byCode[r.code].qty : null;
+    const sufficient = (have != null && need != null) ? have >= need : null;
+    return kv(r.name || r.code || "Ingredient", (need != null ? need : "?") + " needed · " + (have != null ? have : "?") + " on hand" + (sufficient === null ? "" : (sufficient ? " ✓" : " ⚠")));
+  }).join("");
+  return `<div class="info-box"><div class="ib-label">Inventory Match: ${escapeHtml(match.name || match.productCode || "")}</div>${rowsHtml}</div>`;
 }
 function kv(k, v) {
   if (v === undefined || v === null || v === "") return "";
@@ -988,6 +1472,31 @@ function buildRecordHtml(type, rec) {
     html += kv("Message", rec.message) + kv("Sender", rec.sender) + kv("Recipient", rec.recipient) + kv("Action Required", rec.actionRequired) + kv("Follow-up", fmtDate(rec.followUpDate)) + kv("Related Record", rec.relatedRecord);
     html += `<label>Status</label><select id="editStatus">${["Open", "Resolved"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update</button>`;
+  } else if (type === "production") {
+    html += `<h3>${escapeHtml(rec.product)}</h3>`;
+    html += kv("Client", rec.client) + kv("Batch Size", rec.batchSize) + kv("Planned Date", fmtDate(rec.plannedDate)) + kv("Assigned Staff", rec.assignedStaff) + kv("Inventory Reference", rec.inventoryReference);
+    html += kv("Packaging", rec.packagingReadiness) + kv("Label", rec.labelReadiness) + kv("Box", rec.boxReadiness) + kv("Batch Sheet", rec.batchSheetStatus) + kv("SOP", rec.sopStatus) + kv("QC Status", rec.qcStatus) + kv("Filling Status", rec.fillingStatus) + kv("Director Review", rec.directorReviewStatus) + kv("Notes", rec.notes);
+    if (rec.blocker) html += `<div class="blocker-banner">⚠ ${escapeHtml(rec.blocker)}</div>`;
+    html += buildInventorySufficiencyHtml(rec.inventoryReference);
+    html += `<label>Overall Status</label><select id="editStatus">${["READY", "BLOCKED", "WAITING FOR DIRECTOR", "WAITING FOR PURCHASE", "IN PRODUCTION", "QC", "COMPLETED"].map(s => `<option ${s === rec.productionStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<button class="btn primary" id="recordSaveBtn">Update Production Record</button>`;
+    if (currentTier === "Manager" && rec.productionStatus === "BLOCKED") {
+      html += `<div class="manager-only"><div class="mo-label">Manager Override</div><div class="hint" style="margin:0 0 10px;">Packaging/labels/boxes aren't fully ready — proceed anyway (Section 11: never a hard stop).</div><button class="btn dark" id="overrideBlockerBtn">Override Blocker — Proceed Anyway</button></div>`;
+    }
+  } else if (type === "delivery") {
+    html += `<h3>${escapeHtml(rec.direction)} · ${escapeHtml(rec.clientOrSupplier || "Unnamed")}</h3>`;
+    html += kv("Items", rec.items) + kv("Delivery Date", fmtDate(rec.deliveryDate)) + kv("Expected Time", rec.expectedTime) + kv("Contact", rec.contact) + kv("Packaging", rec.packagingStatus) + kv("Label", rec.labelStatus) + kv("Box", rec.boxStatus) + kv("Payment Status", rec.paymentStatus) + kv("Cost", rec.cost) + kv("Client Confirmed", rec.clientConfirmation) + kv("Notes", rec.notes);
+    html += `<label>Status</label><select id="editStatus">${["Scheduled", "Packed", "Dispatched", "Delivered", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<button class="btn primary" id="recordSaveBtn">Update Delivery</button>`;
+  } else if (type === "purchase") {
+    html += `<h3>${escapeHtml(rec.item)}</h3>`;
+    html += kv("Supplier", rec.supplier) + kv("Category", rec.category) + kv("Quantity", rec.quantity) + kv("Amount", rec.amount) + kv("Expected Arrival", fmtDate(rec.expectedArrival)) + kv("Responsible Person", rec.responsiblePerson) + kv("Received", rec.received) + kv("Notes", rec.notes);
+    html += `<label>Status</label><select id="editStatus">${["Need Identified", "Pending Approval", "Approved", "Ordered", "Paid", "Awaiting Supplier", "Received", "Completed", "Rejected"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<div class="form-grid"><div><label>Ordered</label><select id="editOrdered">${["No", "Yes"].map(v => `<option ${v === rec.ordered ? "selected" : ""}>${v}</option>`).join("")}</select></div><div><label>Paid</label><select id="editPaid">${["No", "Yes"].map(v => `<option ${v === rec.paid ? "selected" : ""}>${v}</option>`).join("")}</select></div></div>`;
+    html += `<button class="btn primary" id="recordSaveBtn">Update Purchase</button>`;
+    if (currentTier === "Manager" && rec.status === "Pending Approval") {
+      html += `<div class="manager-only"><div class="mo-label">Manager Approval</div><button class="btn dark" id="approvePurchaseBtn">Approve Purchase</button></div>`;
+    }
   }
   return html;
 }
@@ -1024,9 +1533,45 @@ function wireRecordModal(type, rec) {
       applyLocalPatch("communications", "communicationId", rec.communicationId, patch);
       enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: patch });
       renderCommunications();
+    } else if (type === "production") {
+      const patch = { productionStatus: newStatus };
+      applyLocalPatch("production", "productionId", rec.productionId, patch);
+      enqueue("updateProduction", { productionId: rec.productionId, updatedBy: currentWorker, tier: currentTier, patch: patch });
+      renderProduction(); renderDashboard();
+    } else if (type === "delivery") {
+      const patch = { status: newStatus };
+      applyLocalPatch("deliveries", "deliveryId", rec.deliveryId, patch);
+      enqueue("updateDelivery", { deliveryId: rec.deliveryId, updatedBy: currentWorker, patch: patch });
+      renderDeliveries(); renderDashboard();
+    } else if (type === "purchase") {
+      const patch = { status: newStatus, ordered: document.getElementById("editOrdered").value, paid: document.getElementById("editPaid").value };
+      applyLocalPatch("purchases", "purchaseId", rec.purchaseId, patch);
+      enqueue("updatePurchase", { purchaseId: rec.purchaseId, updatedBy: currentWorker, tier: currentTier, patch: patch });
+      renderPurchasing(); renderDashboard();
     }
     closeRecordModal();
   });
+
+  const overrideBtn = document.getElementById("overrideBlockerBtn");
+  if (overrideBtn) {
+    overrideBtn.addEventListener("click", () => {
+      const patch = { productionStatus: "READY", blocker: "Overridden by " + currentWorker + " on " + fmtDate(new Date().toISOString()) + " — proceeding without full packaging/label/box readiness." };
+      applyLocalPatch("production", "productionId", rec.productionId, patch);
+      enqueue("updateProduction", { productionId: rec.productionId, updatedBy: currentWorker, tier: currentTier, patch: patch, blockerOverride: true });
+      renderProduction(); renderDashboard();
+      closeRecordModal();
+    });
+  }
+  const approveBtn = document.getElementById("approvePurchaseBtn");
+  if (approveBtn) {
+    approveBtn.addEventListener("click", () => {
+      const patch = { status: "Approved" };
+      applyLocalPatch("purchases", "purchaseId", rec.purchaseId, patch);
+      enqueue("updatePurchase", { purchaseId: rec.purchaseId, updatedBy: currentWorker, tier: currentTier, patch: patch });
+      renderPurchasing(); renderDashboard();
+      closeRecordModal();
+    });
+  }
 }
 
 // ---------- navigation ----------
@@ -1099,6 +1644,9 @@ function startWorking() {
   renderAll();
   renderSyncStatus();
   trySync();
+  renderInventoryStatus();
+  renderInventoryLookup();
+  syncInventory();
 }
 document.getElementById("startWorking").addEventListener("click", startWorking);
 document.getElementById("workerNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") startWorking(); });

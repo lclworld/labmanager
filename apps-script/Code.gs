@@ -15,8 +15,10 @@
  *
  * Phase 2 added: health check, dashboard bootstrap counts, and the Users
  * log. Phase 3 added: Tasks, Calendar, Director Attention, and
- * Communications read+write. Production/Deliveries/Purchases follow in
- * Phase 4.
+ * Communications read+write. Phase 4 added: Production, Deliveries, and
+ * Purchases read+write. Inventory's ?action=getIngredients/
+ * getProductionData calls happen directly from the frontend to
+ * Inventory's own deployment — nothing about that integration lives here.
  */
 
 function jsonOut(obj) {
@@ -46,6 +48,12 @@ function doGet(e) {
         return jsonOut({ status: "ok", items: getAllRows("DirectorAttention") });
       case "getCommunications":
         return jsonOut({ status: "ok", items: getAllRows("Communications") });
+      case "getProduction":
+        return jsonOut({ status: "ok", records: getAllRows("Production") });
+      case "getDeliveries":
+        return jsonOut({ status: "ok", deliveries: getAllRows("Deliveries") });
+      case "getPurchases":
+        return jsonOut({ status: "ok", purchases: getAllRows("Purchases") });
       default:
         return errorOut("Unknown action: " + action);
     }
@@ -79,6 +87,18 @@ function doPost(e) {
         return jsonOut(handleCreateCommunication(payload));
       case "updateCommunication":
         return jsonOut(handleUpdateCommunication(payload));
+      case "createProduction":
+        return jsonOut(handleCreateProduction(payload));
+      case "updateProduction":
+        return jsonOut(handleUpdateProduction(payload));
+      case "createDelivery":
+        return jsonOut(handleCreateDelivery(payload));
+      case "updateDelivery":
+        return jsonOut(handleUpdateDelivery(payload));
+      case "createPurchase":
+        return jsonOut(handleCreatePurchase(payload));
+      case "updatePurchase":
+        return jsonOut(handleUpdatePurchase(payload));
       default:
         return errorOut("Unknown action: " + action);
     }
@@ -204,4 +224,64 @@ function handleUpdateCommunication(payload) {
   updateRecord("Communications", communicationId, patch);
   logActivity(payload.updatedBy || "", "", "Communication", communicationId, "Updated", before.status || "", patch.status || "", "");
   return { status: "ok", communicationId: communicationId };
+}
+
+// ---------- Production ----------
+function handleCreateProduction(payload) {
+  if (!payload.product) return { status: "error", message: "Product is required" };
+  var id = createRecord("Production", payload);
+  logActivity(payload.createdBy, "Employee", "Production", id, "Created", "", payload.productionStatus || "", payload.product);
+  return { status: "ok", productionId: id };
+}
+
+function handleUpdateProduction(payload) {
+  var productionId = payload.productionId;
+  if (!productionId) return { status: "error", message: "productionId is required" };
+  var before = getRowById("Production", productionId);
+  if (!before) return { status: "error", message: "Production record not found: " + productionId };
+  var patch = payload.patch || {};
+  updateRecord("Production", productionId, patch);
+  var action = payload.blockerOverride ? "Blocker overridden" : (patch.productionStatus ? "Status changed" : "Updated");
+  logActivity(payload.updatedBy, payload.tier, "Production", productionId, action, before.productionStatus || "", patch.productionStatus || "", payload.blockerOverride ? (patch.blocker || "") : "");
+  return { status: "ok", productionId: productionId };
+}
+
+// ---------- Deliveries ----------
+function handleCreateDelivery(payload) {
+  if (!payload.items) return { status: "error", message: "Items is required" };
+  var id = createRecord("Deliveries", payload);
+  logActivity(payload.createdBy, "Employee", "Delivery", id, "Created", "", payload.status || "", payload.direction || "");
+  return { status: "ok", deliveryId: id };
+}
+
+function handleUpdateDelivery(payload) {
+  var deliveryId = payload.deliveryId;
+  if (!deliveryId) return { status: "error", message: "deliveryId is required" };
+  var before = getRowById("Deliveries", deliveryId);
+  if (!before) return { status: "error", message: "Delivery not found: " + deliveryId };
+  var patch = payload.patch || {};
+  updateRecord("Deliveries", deliveryId, patch);
+  logActivity(payload.updatedBy || "", "", "Delivery", deliveryId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
+  return { status: "ok", deliveryId: deliveryId };
+}
+
+// ---------- Purchases ----------
+function handleCreatePurchase(payload) {
+  if (!payload.item) return { status: "error", message: "Item is required" };
+  var id = createRecord("Purchases", payload);
+  logActivity(payload.createdBy, "Employee", "Purchase", id, "Created", "", payload.status || "Need Identified", payload.item);
+  return { status: "ok", purchaseId: id };
+}
+
+// Approving a purchase is a Manager-tier action in the frontend's role
+// model, enforced client-side like every other tier boundary in this app.
+function handleUpdatePurchase(payload) {
+  var purchaseId = payload.purchaseId;
+  if (!purchaseId) return { status: "error", message: "purchaseId is required" };
+  var before = getRowById("Purchases", purchaseId);
+  if (!before) return { status: "error", message: "Purchase not found: " + purchaseId };
+  var patch = payload.patch || {};
+  updateRecord("Purchases", purchaseId, patch);
+  logActivity(payload.updatedBy, payload.tier, "Purchase", purchaseId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
+  return { status: "ok", purchaseId: purchaseId };
 }
