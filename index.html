@@ -355,7 +355,7 @@
         <label>Title</label><input id="taskTitle" placeholder="Task title">
         <label>Description</label><textarea id="taskDescription" placeholder="Details (optional)"></textarea>
         <div class="form-grid">
-          <div><label>Category</label><select id="taskCategory"><option>General</option><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Admin</option><option>Client</option><option>Supplier</option></select></div>
+          <div><label>Category</label><select id="taskCategory"><option>General</option><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Admin</option><option>Client</option><option>Supplier</option><option>Social Media</option></select></div>
           <div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
           <div><label>Assigned To</label><input id="taskAssignedTo" placeholder="First name"></div>
           <div><label>Due Date</label><input type="date" id="taskDueDate"></div>
@@ -2307,6 +2307,20 @@ document.getElementById("adminPinPad").addEventListener("click", (e) => {
   pressAdminPinKey(btn.dataset.action || btn.dataset.n);
 });
 document.getElementById("adminBackBtn").addEventListener("click", () => showScreen("dashboard"));
+// Physical keyboard support for both PIN pads — a laptop shouldn't force
+// clicking digits with a mouse/trackpad.
+document.addEventListener("keydown", (e) => {
+  const activeScreen = document.querySelector(".screen.active");
+  if (!activeScreen || (activeScreen.id !== "pin" && activeScreen.id !== "adminGate")) return;
+  let key = null;
+  if (e.key >= "0" && e.key <= "9") key = e.key;
+  else if (e.key === "Backspace") key = "back";
+  else if (e.key === "Escape" || e.key === "Delete") key = "clear";
+  else return;
+  e.preventDefault();
+  if (activeScreen.id === "pin") pressPinKey(key);
+  else pressAdminPinKey(key);
+});
 // Drop back to Employee tier rather than re-prompting for the PIN.
 function exitAdminTier() {
   currentTier = "Employee";
