@@ -80,6 +80,8 @@
   .stat .lbl { font-size: 0.66rem; color: var(--brown); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
   .stat .hint { font-size: 0.68rem; color: var(--brown); margin-top: 8px; line-height: 1.4; }
   .stat.warn { background: var(--yellow); border-color: var(--yellow); }
+  .check-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 600; color: var(--black); text-transform: none; letter-spacing: normal; margin: 14px 0 0; cursor: pointer; }
+  .check-row input { width: 16px; height: 16px; flex: none; }
   .stat[data-nav-screen] { cursor: pointer; }
   .stat[data-nav-screen]:active { background: rgba(255,145,77,0.08); }
 
@@ -135,6 +137,18 @@
   .record-card .manager-only { border-top: 1.5px dashed var(--border); margin-top: 14px; padding-top: 14px; }
   .record-card .manager-only .mo-label { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--brown); margin-bottom: 8px; }
 
+  .calendar-grid-nav { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 10px; }
+  .calendar-grid-nav button { background: var(--white); border: 1.5px solid var(--border); border-radius: 8px; padding: 6px 16px; font-weight: 800; font-size: 1rem; cursor: pointer; color: var(--black); }
+  .cal-month-label { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1rem; }
+  .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 14px; }
+  .cal-dow { text-align: center; font-size: 0.58rem; font-weight: 800; text-transform: uppercase; color: var(--brown); padding-bottom: 4px; }
+  .cal-day { aspect-ratio: 1; border-radius: 10px; border: 1.5px solid var(--border); background: var(--white); display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 0.76rem; font-weight: 600; cursor: pointer; gap: 3px; }
+  .cal-day.other-month { opacity: 0.32; cursor: default; }
+  .cal-day.today { border-color: var(--black); border-width: 2px; }
+  .cal-day.selected { background: rgba(255,145,77,0.18); border-color: var(--orange); }
+  .cal-day .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
+  .cal-day .cal-dot.warn { background: #c23; }
+
   .planner-group-title { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brown); margin: 18px 0 8px; }
   .planner-group-title:first-of-type { margin-top: 0; }
 
@@ -182,7 +196,6 @@
   <div class="sidebar" id="sidebar">
     <div class="brand-row"><div class="mark">L</div><div class="word">LCL<span>Operations Centre</span></div></div>
     <div class="nav-item active" data-screen="dashboard">Command Center</div>
-    <div class="nav-item" data-screen="planner">Planner</div>
     <div class="nav-item" data-screen="calendar">Calendar</div>
     <div class="nav-item" data-screen="tasks">Tasks</div>
     <div class="nav-item" data-screen="directorAttention">Director Attention</div>
@@ -248,7 +261,6 @@
     <div class="word">LCL <span>Operations Centre</span></div>
     <div class="screen-label" id="screenLabel">Command Center</div>
     <button class="bell-btn" id="notifBellBtn" title="Notifications">🔔<span class="bell-badge" id="notifBadge" style="display:none;">0</span></button>
-    <button class="bell-btn" id="topbarAdminBtn" title="Admin">🔒</button>
     <div class="mgr-badge" id="mgrBadge" style="display:none;">Manager</div>
     <div class="worker-badge" id="workerBadge" style="display:none;"></div>
   </div>
@@ -326,39 +338,61 @@
     </div>
   </div>
 
-  <!-- TASKS -->
+  <!-- TASKS (+ Planner, as a second tab of the same screen) -->
   <div class="screen" id="tasks">
     <h2 class="title">Tasks</h2>
-    <button class="btn primary" id="newTaskBtn">+ New Task</button>
-    <div class="card" id="taskForm" style="display:none;">
-      <label>Title</label><input id="taskTitle" placeholder="Task title">
-      <label>Description</label><textarea id="taskDescription" placeholder="Details (optional)"></textarea>
-      <div class="form-grid">
-        <div><label>Category</label><select id="taskCategory"><option>General</option><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Admin</option><option>Client</option><option>Supplier</option></select></div>
-        <div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
-        <div><label>Assigned To</label><input id="taskAssignedTo" placeholder="First name"></div>
-        <div><label>Due Date</label><input type="date" id="taskDueDate"></div>
+    <div class="filter-row" id="taskViewTabs">
+      <button data-view="list" class="active">Task List</button>
+      <button data-view="planner">Planner</button>
+    </div>
+
+    <div id="taskListView">
+      <button class="btn primary" id="newTaskBtn">+ New Task</button>
+      <div class="card" id="taskForm" style="display:none;">
+        <label>Title</label><input id="taskTitle" placeholder="Task title">
+        <label>Description</label><textarea id="taskDescription" placeholder="Details (optional)"></textarea>
+        <div class="form-grid">
+          <div><label>Category</label><select id="taskCategory"><option>General</option><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Admin</option><option>Client</option><option>Supplier</option></select></div>
+          <div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
+          <div><label>Assigned To</label><input id="taskAssignedTo" placeholder="First name"></div>
+          <div><label>Due Date</label><input type="date" id="taskDueDate"></div>
+        </div>
+        <label>Related Record</label><input id="taskRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
+        <label>Notes</label><textarea id="taskNotes" placeholder="Optional"></textarea>
+        <label class="check-row"><input type="checkbox" id="taskFlagDirector"> Flag for Director attention — also sends this to the Director Attention queue</label>
+        <button class="btn primary" id="saveTaskBtn">Save Task</button>
       </div>
-      <label>Related Record</label><input id="taskRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
-      <label>Notes</label><textarea id="taskNotes" placeholder="Optional"></textarea>
-      <button class="btn primary" id="saveTaskBtn">Save Task</button>
+      <div class="filter-row" id="taskFilter">
+        <button data-status="all" class="active">All</button>
+        <button data-status="Not Started">Not Started</button>
+        <button data-status="In Progress">In Progress</button>
+        <button data-status="Waiting">Waiting</button>
+        <button data-status="Blocked">Blocked</button>
+        <button data-status="Completed">Completed</button>
+        <button data-status="__archived__">Archived</button>
+      </div>
+      <div class="card"><div id="taskList"></div></div>
     </div>
-    <div class="filter-row" id="taskFilter">
-      <button data-status="all" class="active">All</button>
-      <button data-status="Not Started">Not Started</button>
-      <button data-status="In Progress">In Progress</button>
-      <button data-status="Waiting">Waiting</button>
-      <button data-status="Blocked">Blocked</button>
-      <button data-status="Completed">Completed</button>
-      <button data-status="__archived__">Archived</button>
+
+    <div id="taskPlannerView" style="display:none;">
+      <div class="hint" style="margin:0 0 14px;">Everything with a date, grouped by when it's due — Tasks, Calendar, Production, Deliveries, Purchasing and Director Attention deadlines all pulled in automatically.</div>
+      <div class="filter-row" id="plannerFilter">
+        <button data-kind="all" class="active">All</button>
+        <button data-kind="Task">Tasks</button>
+        <button data-kind="Event">Events</button>
+        <button data-kind="Production">Production</button>
+        <button data-kind="Delivery">Deliveries</button>
+        <button data-kind="Purchase">Purchases</button>
+        <button data-kind="Director Attention">Director Attention</button>
+      </div>
+      <div id="plannerBody"></div>
     </div>
-    <div class="card"><div id="taskList"></div></div>
   </div>
 
   <!-- CALENDAR -->
   <div class="screen" id="calendar">
     <h2 class="title">Calendar</h2>
-    <div class="hint" style="margin:-8px 0 14px;">Everything with a date, pulled in automatically — task due dates, production plans, deliveries, purchase arrivals, and Director Attention deadlines — nothing here needs entering twice. List view for now; month/week/day grid views can follow once this is in daily use.</div>
+    <div class="hint" style="margin:-8px 0 14px;">Everything with a date, pulled in automatically — task due dates, production plans, deliveries, purchase arrivals, and Director Attention deadlines — nothing here needs entering twice.</div>
     <button class="btn primary" id="newEventBtn">+ New Event</button>
     <div class="card" id="eventForm" style="display:none;">
       <label>Title</label><input id="eventTitle" placeholder="Event title">
@@ -384,23 +418,16 @@
       <button data-kind="Director Attention">Director Attention</button>
       <button data-kind="__archived__">Archived</button>
     </div>
-    <div class="card"><div id="calendarList"></div></div>
-  </div>
 
-  <!-- PLANNER -->
-  <div class="screen" id="planner">
-    <h2 class="title">Planner</h2>
-    <div class="hint" style="margin:-8px 0 14px;">Everything with a date, grouped by when it's due — Tasks, Calendar, Production, Deliveries, Purchasing and Director Attention deadlines all pulled in automatically.</div>
-    <div class="filter-row" id="plannerFilter">
-      <button data-kind="all" class="active">All</button>
-      <button data-kind="Task">Tasks</button>
-      <button data-kind="Event">Events</button>
-      <button data-kind="Production">Production</button>
-      <button data-kind="Delivery">Deliveries</button>
-      <button data-kind="Purchase">Purchases</button>
-      <button data-kind="Director Attention">Director Attention</button>
+    <div class="calendar-grid-nav">
+      <button id="calPrevMonth" aria-label="Previous month">‹</button>
+      <div class="cal-month-label" id="calMonthLabel">Month Year</div>
+      <button id="calNextMonth" aria-label="Next month">›</button>
     </div>
-    <div id="plannerBody"></div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+
+    <h3 class="section-title" id="calAgendaTitle">Today</h3>
+    <div class="card"><div id="calendarAgenda"></div></div>
   </div>
 
   <!-- DIRECTOR ATTENTION -->
@@ -491,12 +518,7 @@
       <button class="btn primary" id="saveProductionBtn">Save Production Record</button>
     </div>
 
-    <h3 class="section-title">Ingredient &amp; Batch Lookup <span class="hint" style="margin:0; display:inline;">— read-only, from LCL Inventory</span></h3>
-    <div class="card">
-      <div class="sync-status" id="inventoryStatus">Loading…</div>
-      <input class="search" id="inventorySearch" placeholder="Search Inventory ingredients and packaging...">
-      <div id="inventoryResults"></div>
-    </div>
+    <div class="hint" style="margin:-8px 0 14px;">Batches already in Inventory show up below automatically — tap one to see its real production sheet, or start tracking it here for packaging/readiness/status.</div>
 
     <div class="filter-row" id="productionFilter">
       <button data-status="all" class="active">All</button>
@@ -510,6 +532,13 @@
       <button data-status="__archived__">Archived</button>
     </div>
     <div class="card"><div id="productionList"></div></div>
+
+    <button class="btn ghost" id="toggleInventoryLookupBtn">🔍 Check Inventory Stock</button>
+    <div class="card" id="inventoryLookupPanel" style="display:none;">
+      <div class="sync-status" id="inventoryStatus">Loading…</div>
+      <input class="search" id="inventorySearch" placeholder="Search Inventory ingredients and packaging...">
+      <div id="inventoryResults"></div>
+    </div>
   </div>
 
   <!-- DELIVERIES -->
@@ -594,7 +623,7 @@
     <div class="tab" data-screen="tasks"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9"/></svg></span>Tasks</div>
     <div class="tab" data-screen="directorAttention"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg></span>Director</div>
     <div class="tab" data-screen="calendar"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke-linecap="round"/></svg></span>Calendar</div>
-    <div class="tab" data-screen="planner"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round"/></svg></span>Planner</div>
+    <div class="tab admin-item" data-screen="adminGate" id="tabbarAdminItem"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke-linecap="round"/></svg></span><span id="tabbarAdminLabel">Admin</span></div>
   </div>
   </div>
 </div>
@@ -765,6 +794,15 @@ function statusClass(s) {
   return "status-" + String(s || "").toLowerCase().replace(/[^a-z]/g, "");
 }
 function todayStr() { return new Date().toISOString().slice(0, 10); }
+// Only reformats a value that IS a plain number end to end (e.g. "12.5",
+// not "5kg" or "10 units") — never mangles a free-text field that happens
+// to start with digits.
+function fmtNum(v) {
+  if (v === "" || v === null || v === undefined) return v;
+  const s = String(v).trim();
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return v;
+  return Number(s).toFixed(2);
+}
 
 // ---------- Command Center rendering ----------
 function renderDashboard() {
@@ -866,7 +904,17 @@ function renderAll() {
   renderHistory();
 }
 
-// ---------- Tasks ----------
+// ---------- Tasks (+ Planner tab) ----------
+document.getElementById("taskViewTabs").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#taskViewTabs button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  const isPlanner = btn.dataset.view === "planner";
+  document.getElementById("taskListView").style.display = isPlanner ? "none" : "block";
+  document.getElementById("taskPlannerView").style.display = isPlanner ? "block" : "none";
+  if (isPlanner) renderPlanner();
+});
 let taskFilterStatus = "all";
 document.getElementById("newTaskBtn").addEventListener("click", () => {
   const form = document.getElementById("taskForm");
@@ -876,6 +924,7 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
   const title = document.getElementById("taskTitle").value.trim();
   if (!title) { document.getElementById("taskTitle").focus(); return; }
   const now = new Date().toISOString();
+  const flagForDirector = document.getElementById("taskFlagDirector").checked;
   const fields = {
     title: title,
     description: document.getElementById("taskDescription").value.trim(),
@@ -886,7 +935,7 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
     createdDate: now,
     dueDate: document.getElementById("taskDueDate").value,
     completedDate: "",
-    directorAttentionFlag: false,
+    directorAttentionFlag: flagForDirector,
     missingInformation: "",
     notes: document.getElementById("taskNotes").value.trim(),
     relatedRecord: document.getElementById("taskRelatedRecord").value.trim(),
@@ -899,10 +948,40 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
   saveCache(cache);
   renderTasks();
   renderDashboard();
+  if (flagForDirector) {
+    flagDirectorForTask(fields);
+  }
   ["taskTitle", "taskDescription", "taskAssignedTo", "taskDueDate", "taskRelatedRecord", "taskNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("taskFlagDirector").checked = false;
   document.getElementById("taskForm").style.display = "none";
   enqueue("createTask", fields);
 });
+// A task flagged "needs Director attention" also lands in the Director
+// Attention queue itself, not just a badge only the task's creator sees.
+function flagDirectorForTask(task) {
+  const now = new Date().toISOString();
+  const fields = {
+    relatedRecord: task.title,
+    category: task.category || "General",
+    issue: "Task flagged for attention: " + task.title + (task.description ? " — " + task.description : ""),
+    whatIsNeededFromDirector: "Review and respond.",
+    missingInformation: task.missingInformation || "",
+    flaggedBy: currentWorker,
+    dateFlagged: now,
+    priority: task.priority === "Urgent" || task.priority === "High" ? task.priority : "Normal",
+    deadline: task.dueDate || "",
+    status: "Open",
+    directorResponse: "",
+    dateResolved: ""
+  };
+  const cache = loadCache();
+  cache.directorAttention = cache.directorAttention || [];
+  cache.directorAttention.unshift(Object.assign({ attentionId: "ATT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDirectorAttention();
+  renderDashboard();
+  enqueue("flagDirectorAttention", fields);
+}
 document.getElementById("taskFilter").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
   if (!btn) return;
@@ -930,6 +1009,7 @@ function renderTasks() {
         <div class="rr-meta">${escapeHtml(t.category || "General")} · ${escapeHtml(t.assignedTo || "Unassigned")}${t.dueDate ? " · Due " + fmtDate(t.dueDate) : ""}</div>
       </div>
       <div class="rr-right">
+        ${t.directorAttentionFlag ? '<span class="pill status-urgent">🚩 Flagged</span>' : ""}
         ${isTaskOverdue(t) ? '<span class="pill status-blocked">OVERDUE</span>' : ""}
         <span class="pill ${statusClass(t.status)}">${escapeHtml(t.status || "Not Started")}</span>
         <span class="pill ${statusClass(t.priority)}">${escapeHtml(t.priority || "Normal")}</span>
@@ -983,32 +1063,30 @@ document.getElementById("saveEventBtn").addEventListener("click", () => {
 // into a separate calendar entry. "Event" is the one kind that's actually
 // created here, for things with no other natural home (meetings etc).
 const ARCHIVED_FILTER = "__archived__";
+// Returns EVERY item, including ones with no date yet (Planner puts those
+// in a "No Date" bucket so a flagged task never just disappears; Calendar
+// only places dots for items that do have one, which falls out naturally
+// since an empty date never matches a real day cell).
 function collectAllDatedItems() {
   const cache = loadCache();
   const items = [];
   (cache.tasks || []).forEach(t => {
-    if (!t.dueDate) return;
-    items.push({ kind: "Task", type: "task", id: t.taskId, title: t.title, date: t.dueDate, meta: (t.assignedTo || "Unassigned") + " · " + (t.category || "General"), status: t.status, archived: t.archived === "Yes" });
+    items.push({ kind: "Task", type: "task", id: t.taskId, title: t.title, date: t.dueDate || "", meta: (t.assignedTo || "Unassigned") + " · " + (t.category || "General"), status: t.status, archived: t.archived === "Yes" });
   });
   (cache.calendarEvents || []).forEach(ev => {
-    if (!ev.date) return;
-    items.push({ kind: "Event", type: "event", id: ev.eventId, title: ev.title, date: ev.date, meta: (ev.eventType || "Other") + (ev.owner ? " · " + ev.owner : ""), status: ev.status, archived: ev.archived === "Yes" });
+    items.push({ kind: "Event", type: "event", id: ev.eventId, title: ev.title, date: ev.date || "", meta: (ev.eventType || "Other") + (ev.owner ? " · " + ev.owner : ""), status: ev.status, archived: ev.archived === "Yes" });
   });
   (cache.production || []).forEach(p => {
-    if (!p.plannedDate) return;
-    items.push({ kind: "Production", type: "production", id: p.productionId, title: p.product, date: p.plannedDate, meta: (p.client ? p.client + " · " : "") + (p.productionStatus || ""), status: p.productionStatus, archived: p.archived === "Yes" });
+    items.push({ kind: "Production", type: "production", id: p.productionId, title: p.product, date: p.plannedDate || "", meta: (p.client ? p.client + " · " : "") + (p.productionStatus || ""), status: p.productionStatus, archived: p.archived === "Yes" });
   });
   (cache.deliveries || []).forEach(d => {
-    if (!d.deliveryDate) return;
-    items.push({ kind: "Delivery", type: "delivery", id: d.deliveryId, title: d.direction + " — " + (d.clientOrSupplier || ""), date: d.deliveryDate, meta: (d.items || "").slice(0, 40), status: d.status, archived: d.archived === "Yes" });
+    items.push({ kind: "Delivery", type: "delivery", id: d.deliveryId, title: d.direction + " — " + (d.clientOrSupplier || ""), date: d.deliveryDate || "", meta: (d.items || "").slice(0, 40), status: d.status, archived: d.archived === "Yes" });
   });
   (cache.purchases || []).forEach(p => {
-    if (!p.expectedArrival) return;
-    items.push({ kind: "Purchase", type: "purchase", id: p.purchaseId, title: p.item, date: p.expectedArrival, meta: (p.supplier || "") + " · Expected arrival", status: p.status, archived: p.archived === "Yes" });
+    items.push({ kind: "Purchase", type: "purchase", id: p.purchaseId, title: p.item, date: p.expectedArrival || "", meta: (p.supplier || "") + " · Expected arrival", status: p.status, archived: p.archived === "Yes" });
   });
   (cache.directorAttention || []).forEach(a => {
-    if (!a.deadline) return;
-    items.push({ kind: "Director Attention", type: "attention", id: a.attentionId, title: (a.issue || "").slice(0, 60), date: a.deadline, meta: "Deadline · " + (a.priority || "Normal"), status: a.status, archived: a.archived === "Yes" });
+    items.push({ kind: "Director Attention", type: "attention", id: a.attentionId, title: (a.issue || "").slice(0, 60), date: a.deadline || "", meta: "Deadline · " + (a.priority || "Normal"), status: a.status, archived: a.archived === "Yes" });
   });
   return items;
 }
@@ -1067,27 +1145,82 @@ document.getElementById("calendarFilter").addEventListener("click", (e) => {
   calendarFilterKind = btn.dataset.kind;
   renderCalendar();
 });
-function renderCalendar() {
+function calendarVisibleItems() {
   const showArchived = calendarFilterKind === ARCHIVED_FILTER;
   let items = collectAllDatedItems().filter(it => showArchived ? it.archived : !it.archived);
   if (!showArchived && calendarFilterKind !== "all") items = items.filter(it => it.kind === calendarFilterKind);
-  items.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  const list = document.getElementById("calendarList");
-  if (!list) return;
-  if (!items.length) { list.innerHTML = '<div class="empty-state">Nothing dated yet.</div>'; return; }
-  list.innerHTML = items.map(it => `
-    <div class="record-row" data-type="${it.type}" data-id="${escapeHtml(it.id)}">
-      <div>
-        <div class="rr-title">${escapeHtml(it.title)}</div>
-        <div class="rr-meta">${fmtDate(it.date)} · ${escapeHtml(it.kind)} · ${escapeHtml(it.meta)}</div>
-      </div>
-      <div class="rr-right"><span class="pill ${statusClass(it.status)}">${escapeHtml(it.status || "")}</span></div>
-    </div>`).join("");
+  return items;
 }
-document.getElementById("calendarList").addEventListener("click", (e) => {
+let calViewDate = new Date();
+let calSelectedDate = todayStr();
+document.getElementById("calPrevMonth").addEventListener("click", () => {
+  calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() - 1, 1);
+  renderCalendar();
+});
+document.getElementById("calNextMonth").addEventListener("click", () => {
+  calViewDate = new Date(calViewDate.getFullYear(), calViewDate.getMonth() + 1, 1);
+  renderCalendar();
+});
+document.getElementById("calendarGrid").addEventListener("click", (e) => {
+  const cell = e.target.closest(".cal-day[data-date]");
+  if (!cell) return;
+  calSelectedDate = cell.dataset.date;
+  renderCalendar();
+});
+document.getElementById("calendarAgenda").addEventListener("click", (e) => {
   const row = e.target.closest(".record-row");
   if (row) openRecordModal(row.dataset.type, row.dataset.id);
 });
+function renderCalendar() {
+  const grid = document.getElementById("calendarGrid");
+  if (!grid) return;
+  const year = calViewDate.getFullYear();
+  const month = calViewDate.getMonth();
+  document.getElementById("calMonthLabel").textContent = calViewDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+
+  const items = calendarVisibleItems();
+  const itemsByDate = {};
+  items.forEach(it => { (itemsByDate[it.date] = itemsByDate[it.date] || []).push(it); });
+
+  const startWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const daysInPrevMonth = new Date(year, month, 0).getDate();
+  const today = todayStr();
+  const pad = n => String(n).padStart(2, "0");
+
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push({ day: daysInPrevMonth - startWeekday + 1 + i, otherMonth: true, dateStr: null });
+  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, otherMonth: false, dateStr: year + "-" + pad(month + 1) + "-" + pad(d) });
+  let trailing = 1;
+  while (cells.length % 7 !== 0) cells.push({ day: trailing++, otherMonth: true, dateStr: null });
+
+  const dowHtml = ["S", "M", "T", "W", "T", "F", "S"].map(d => `<div class="cal-dow">${d}</div>`).join("");
+  const cellsHtml = cells.map(c => {
+    if (c.otherMonth) return `<div class="cal-day other-month"><span>${c.day}</span></div>`;
+    const dayItems = itemsByDate[c.dateStr] || [];
+    const hasUrgent = dayItems.some(it => it.kind === "Director Attention" || (it.type === "task" && isTaskOverdue({ dueDate: it.date, status: it.status })));
+    const classes = ["cal-day"];
+    if (c.dateStr === today) classes.push("today");
+    if (c.dateStr === calSelectedDate) classes.push("selected");
+    return `<div class="${classes.join(" ")}" data-date="${c.dateStr}"><span>${c.day}</span>${dayItems.length ? `<span class="cal-dot${hasUrgent ? " warn" : ""}"></span>` : ""}</div>`;
+  }).join("");
+  grid.innerHTML = dowHtml + cellsHtml;
+
+  const agendaItems = items.filter(it => it.date === calSelectedDate).sort((a, b) => a.kind.localeCompare(b.kind));
+  const title = document.getElementById("calAgendaTitle");
+  if (title) title.textContent = calSelectedDate === today ? "Today" : fmtDate(calSelectedDate);
+  const agenda = document.getElementById("calendarAgenda");
+  if (agenda) {
+    agenda.innerHTML = agendaItems.length ? agendaItems.map(it => `
+      <div class="record-row" data-type="${it.type}" data-id="${escapeHtml(it.id)}">
+        <div>
+          <div class="rr-title">${escapeHtml(it.title)}</div>
+          <div class="rr-meta">${escapeHtml(it.kind)} · ${escapeHtml(it.meta)}</div>
+        </div>
+        <div class="rr-right"><span class="pill ${statusClass(it.status)}">${escapeHtml(it.status || "")}</span></div>
+      </div>`).join("") : '<div class="empty-state">Nothing on this date.</div>';
+  }
+}
 
 // ---------- Planner ----------
 let plannerKind = "all";
@@ -1332,13 +1465,23 @@ document.getElementById("productionFilter").addEventListener("click", (e) => {
   productionFilterStatus = btn.dataset.status;
   renderProduction();
 });
+// Inventory batches/plans with no matching OC production record yet —
+// shown so real production in Inventory is visible here without anyone
+// having to re-type it.
+function collectInventoryOnlyBatches() {
+  const invCache = loadInventoryCache();
+  const trackedRefs = new Set((loadCache().production || []).map(p => (p.inventoryReference || "").toLowerCase()).filter(Boolean));
+  return [].concat(invCache.batches || [], invCache.plans || []).filter(b => {
+    const name = (b.name || b.productCode || "").toLowerCase();
+    return name && !trackedRefs.has(name);
+  });
+}
 function renderProduction() {
   const cache = loadCache();
   const records = filterByStatusOrArchive(cache.production || [], productionFilterStatus, "productionStatus");
   const list = document.getElementById("productionList");
   if (!list) return;
-  if (!records.length) { list.innerHTML = '<div class="empty-state">No production records yet.</div>'; return; }
-  list.innerHTML = records.map(p => `
+  let html = records.map(p => `
     <div class="record-row" data-type="production" data-id="${escapeHtml(p.productionId)}">
       <div>
         <div class="rr-title">${escapeHtml(p.product)}${p.client ? " — " + escapeHtml(p.client) : ""}</div>
@@ -1346,10 +1489,26 @@ function renderProduction() {
       </div>
       <div class="rr-right"><span class="pill ${statusClass(p.productionStatus)}">${escapeHtml(p.productionStatus || "READY")}</span></div>
     </div>`).join("");
+  if (productionFilterStatus === "all") {
+    html += collectInventoryOnlyBatches().map(b => `
+      <div class="record-row" data-type="invbatch" data-id="${escapeHtml(b.name || b.productCode)}">
+        <div>
+          <div class="rr-title">${escapeHtml(b.name || b.productCode || "Untitled batch")}</div>
+          <div class="rr-meta">From Inventory${b.batchSize ? " · " + escapeHtml(b.batchSize) : ""}</div>
+        </div>
+        <div class="rr-right"><span class="pill status-notstarted">Not Tracked</span></div>
+      </div>`).join("");
+  }
+  if (!html) { list.innerHTML = '<div class="empty-state">No production records yet.</div>'; return; }
+  list.innerHTML = html;
 }
 document.getElementById("productionList").addEventListener("click", (e) => {
   const row = e.target.closest(".record-row");
-  if (row) openRecordModal("production", row.dataset.id);
+  if (row) openRecordModal(row.dataset.type, row.dataset.id);
+});
+document.getElementById("toggleInventoryLookupBtn").addEventListener("click", () => {
+  const panel = document.getElementById("inventoryLookupPanel");
+  panel.style.display = panel.style.display === "none" ? "block" : "none";
 });
 
 // Inventory reference autocomplete against cached Inventory batches/plans.
@@ -1443,6 +1602,66 @@ function createPrepTaskForDelivery(delivery) {
   renderDashboard();
   enqueue("createTask", taskFields);
 }
+
+// Automation (Section 17): marking a purchase Ordered surfaces it under
+// Incoming so nobody has to re-enter it as a delivery by hand.
+function createIncomingDeliveryForPurchase(purchase) {
+  const now = new Date().toISOString();
+  const fields = {
+    direction: "Incoming",
+    clientOrSupplier: purchase.supplier || "",
+    items: purchase.item || "",
+    deliveryDate: purchase.expectedArrival || "",
+    expectedTime: "",
+    contact: "",
+    packagingStatus: "N/A",
+    labelStatus: "N/A",
+    boxStatus: "N/A",
+    clientConfirmation: "No",
+    paymentStatus: purchase.paid === "Yes" ? "Paid" : "Pending",
+    cost: purchase.amount || "",
+    status: "Scheduled",
+    notes: "Auto-created — purchase " + (purchase.purchaseId || "") + " (" + (purchase.item || "") + ") marked Ordered.",
+    createdBy: currentWorker,
+    createdDate: now,
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.deliveries = cache.deliveries || [];
+  cache.deliveries.unshift(Object.assign({ deliveryId: "DEL-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDeliveries();
+  renderDashboard();
+  enqueue("createDelivery", fields);
+}
+
+// Automation: a purchase marked Pending Approval goes straight to the
+// Director Attention queue so the Manager tier sees it without anyone
+// having to separately flag it.
+function flagDirectorForPurchaseApproval(purchase) {
+  const now = new Date().toISOString();
+  const fields = {
+    relatedRecord: purchase.purchaseId || "",
+    category: "Purchasing",
+    issue: "Purchase approval needed: " + (purchase.item || "") + (purchase.supplier ? " from " + purchase.supplier : "") + (purchase.amount ? " (" + fmtNum(purchase.amount) + ")" : ""),
+    whatIsNeededFromDirector: "Approve or reject this purchase.",
+    missingInformation: "",
+    flaggedBy: currentWorker,
+    dateFlagged: now,
+    priority: "Normal",
+    deadline: "",
+    status: "Open",
+    directorResponse: "",
+    dateResolved: ""
+  };
+  const cache = loadCache();
+  cache.directorAttention = cache.directorAttention || [];
+  cache.directorAttention.unshift(Object.assign({ attentionId: "ATT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDirectorAttention();
+  renderDashboard();
+  enqueue("flagDirectorAttention", fields);
+}
 let deliveryFilterDirection = "all";
 document.getElementById("deliveryFilter").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
@@ -1528,7 +1747,7 @@ function renderPurchasing() {
     <div class="record-row" data-type="purchase" data-id="${escapeHtml(p.purchaseId)}">
       <div>
         <div class="rr-title">${escapeHtml(p.item)}${p.supplier ? " — " + escapeHtml(p.supplier) : ""}</div>
-        <div class="rr-meta">${p.quantity ? escapeHtml(p.quantity) + " · " : ""}${p.expectedArrival ? "Expected " + fmtDate(p.expectedArrival) : "No expected date"}</div>
+        <div class="rr-meta">${p.quantity ? escapeHtml(fmtNum(p.quantity)) + " · " : ""}${p.expectedArrival ? "Expected " + fmtDate(p.expectedArrival) : "No expected date"}</div>
       </div>
       <div class="rr-right"><span class="pill ${statusClass(p.status)}">${escapeHtml(p.status || "Need Identified")}</span></div>
     </div>`).join("");
@@ -1725,6 +1944,7 @@ async function syncInventory() {
   saveInventoryCache(cache);
   renderInventoryStatus();
   renderInventoryLookup();
+  renderProduction();
 }
 function renderInventoryStatus() {
   const cache = loadInventoryCache();
@@ -1756,7 +1976,7 @@ function renderInventoryLookup() {
   results.innerHTML = items.map(i => `
     <div class="inv-row">
       <div><div>${escapeHtml(i.name)}</div><div class="inv-meta">${escapeHtml(i.code || "")} · ${escapeHtml(i.type || "Ingredient")}</div></div>
-      <span class="pill ${(i.qty || 0) > 0 ? "ok" : "low"}">${i.qty != null ? i.qty : "—"}${i.type === "Packaging" ? "" : "g"}</span>
+      <span class="pill ${(i.qty || 0) > 0 ? "ok" : "low"}">${i.qty != null ? fmtNum(i.qty) : "—"}${i.type === "Packaging" ? "" : "g"}</span>
     </div>`).join("");
 }
 document.getElementById("inventorySearch").addEventListener("input", renderInventoryLookup);
@@ -1770,28 +1990,67 @@ function findRecord(type, id) {
   const idKey = RECORD_ID_KEYS[type];
   return arr.find(r => r[idKey] === id);
 }
-function buildInventorySufficiencyHtml(reference) {
+// Finds the Inventory batch/plan a production reference points to.
+function findInventoryBatch(reference) {
+  if (!reference) return null;
+  const cache = loadInventoryCache();
+  return [].concat(cache.batches || [], cache.plans || []).find(b => (b.name || b.productCode || "").toLowerCase() === reference.toLowerCase()) || null;
+}
+// The real production sheet — phases and ingredient quantities, the way
+// Inventory itself shows it, not just a flat sufficiency check.
+function buildProductionSheetHtml(reference) {
   if (!reference) return "";
   const cache = loadInventoryCache();
-  const match = [].concat(cache.batches || [], cache.plans || []).find(b => (b.name || b.productCode || "").toLowerCase() === reference.toLowerCase());
+  const match = findInventoryBatch(reference);
   if (!match) return `<div class="info-box"><div class="ib-label">Inventory Match</div>Not found in cached Inventory data${cache.lastSynced ? " (last synced " + timeAgo(cache.lastSynced) + ")" : " (not synced yet)"}.</div>`;
   const rows = match.rows || [];
-  if (!rows.length) return `<div class="info-box"><div class="ib-label">Inventory Match: ${escapeHtml(match.name || match.productCode || "")}</div>No ingredient rows cached for it.</div>`;
+  if (!rows.length) return `<div class="info-box"><div class="ib-label">${escapeHtml(match.name || match.productCode || "")}</div>No ingredient rows cached for it yet.</div>`;
   const byCode = {};
   (cache.ingredients || []).forEach(i => { byCode[i.code] = i; });
-  const rowsHtml = rows.map(r => {
-    const need = r.proposedQty != null ? r.proposedQty : (r.qty != null ? r.qty : r.amount);
-    const have = byCode[r.code] ? byCode[r.code].qty : null;
-    const sufficient = (have != null && need != null) ? have >= need : null;
-    return kv(r.name || r.code || "Ingredient", (need != null ? need : "?") + " needed · " + (have != null ? have : "?") + " on hand" + (sufficient === null ? "" : (sufficient ? " ✓" : " ⚠")));
+  const phases = {};
+  const phaseOrder = [];
+  rows.forEach(r => {
+    const phase = r.phase || "";
+    if (!(phase in phases)) { phases[phase] = []; phaseOrder.push(phase); }
+    phases[phase].push(r);
+  });
+  const body = phaseOrder.map(phase => {
+    const rowsHtml = phases[phase].map(r => {
+      const need = r.proposedQty != null ? r.proposedQty : (r.qty != null ? r.qty : r.amount);
+      const have = byCode[r.code] ? byCode[r.code].qty : null;
+      const sufficient = (have != null && need != null) ? have >= need : null;
+      return kv(r.name || r.code || "Ingredient", (need != null ? fmtNum(need) : "?") + " needed · " + (have != null ? fmtNum(have) : "?") + " on hand" + (sufficient === null ? "" : (sufficient ? " ✓" : " ⚠")));
+    }).join("");
+    return (phase ? `<div class="planner-group-title" style="margin-top:10px;">${escapeHtml(phase)}</div>` : "") + rowsHtml;
   }).join("");
-  return `<div class="info-box"><div class="ib-label">Inventory Match: ${escapeHtml(match.name || match.productCode || "")}</div>${rowsHtml}</div>`;
+  return `<div class="info-box"><div class="ib-label">Production Sheet — ${escapeHtml(match.name || match.productCode || "")}</div>${match.batchSize ? kv("Batch Size", match.batchSize) : ""}${body}</div>`;
 }
 function kv(k, v) {
   if (v === undefined || v === null || v === "") return "";
   return `<div class="kv"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`;
 }
 function openRecordModal(type, id) {
+  if (type === "invbatch") {
+    const batch = findInventoryBatch(id);
+    if (!batch) return;
+    const name = batch.name || batch.productCode || "";
+    document.getElementById("recordCard").innerHTML =
+      '<button class="close" id="recordCloseBtn">Close ✕</button>' +
+      `<h3>${escapeHtml(name || "Production Batch")}</h3>` +
+      buildProductionSheetHtml(name) +
+      '<button class="btn primary" id="trackInOcBtn">Track in Operations Centre</button>';
+    document.getElementById("recordOverlay").classList.add("show");
+    document.getElementById("recordCloseBtn").addEventListener("click", closeRecordModal);
+    document.getElementById("trackInOcBtn").addEventListener("click", () => {
+      closeRecordModal();
+      document.getElementById("productionForm").style.display = "block";
+      document.getElementById("prodProduct").value = name;
+      document.getElementById("prodInventoryRef").value = name;
+      if (batch.batchSize) document.getElementById("prodBatchSize").value = batch.batchSize;
+      document.getElementById("prodProduct").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return;
+  }
   const rec = findRecord(type, id);
   if (!rec) return;
   document.getElementById("recordCard").innerHTML = buildRecordHtml(type, rec);
@@ -1832,7 +2091,7 @@ function buildRecordHtml(type, rec) {
     html += kv("Client", rec.client) + kv("Batch Size", rec.batchSize) + kv("Planned Date", fmtDate(rec.plannedDate)) + kv("Assigned Staff", rec.assignedStaff) + kv("Inventory Reference", rec.inventoryReference);
     html += kv("Packaging", rec.packagingReadiness) + kv("Label", rec.labelReadiness) + kv("Box", rec.boxReadiness) + kv("Batch Sheet", rec.batchSheetStatus) + kv("SOP", rec.sopStatus) + kv("QC Status", rec.qcStatus) + kv("Filling Status", rec.fillingStatus) + kv("Director Review", rec.directorReviewStatus) + kv("Notes", rec.notes);
     if (rec.blocker) html += `<div class="blocker-banner">⚠ ${escapeHtml(rec.blocker)}</div>`;
-    html += buildInventorySufficiencyHtml(rec.inventoryReference);
+    html += buildProductionSheetHtml(rec.inventoryReference);
     html += `<label>Overall Status</label><select id="editStatus">${["READY", "BLOCKED", "WAITING FOR DIRECTOR", "WAITING FOR PURCHASE", "IN PRODUCTION", "QC", "COMPLETED"].map(s => `<option ${s === rec.productionStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update Production Record</button>`;
     if (currentTier === "Manager" && rec.productionStatus === "BLOCKED") {
@@ -1840,12 +2099,12 @@ function buildRecordHtml(type, rec) {
     }
   } else if (type === "delivery") {
     html += `<h3>${escapeHtml(rec.direction)} · ${escapeHtml(rec.clientOrSupplier || "Unnamed")}</h3>`;
-    html += kv("Items", rec.items) + kv("Delivery Date", fmtDate(rec.deliveryDate)) + kv("Expected Time", rec.expectedTime) + kv("Contact", rec.contact) + kv("Packaging", rec.packagingStatus) + kv("Label", rec.labelStatus) + kv("Box", rec.boxStatus) + kv("Payment Status", rec.paymentStatus) + kv("Cost", rec.cost) + kv("Client Confirmed", rec.clientConfirmation) + kv("Notes", rec.notes);
+    html += kv("Items", rec.items) + kv("Delivery Date", fmtDate(rec.deliveryDate)) + kv("Expected Time", rec.expectedTime) + kv("Contact", rec.contact) + kv("Packaging", rec.packagingStatus) + kv("Label", rec.labelStatus) + kv("Box", rec.boxStatus) + kv("Payment Status", rec.paymentStatus) + kv("Cost", fmtNum(rec.cost)) + kv("Client Confirmed", rec.clientConfirmation) + kv("Notes", rec.notes);
     html += `<label>Status</label><select id="editStatus">${["Scheduled", "Packed", "Dispatched", "Delivered", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update Delivery</button>`;
   } else if (type === "purchase") {
     html += `<h3>${escapeHtml(rec.item)}</h3>`;
-    html += kv("Supplier", rec.supplier) + kv("Category", rec.category) + kv("Quantity", rec.quantity) + kv("Amount", rec.amount) + kv("Expected Arrival", fmtDate(rec.expectedArrival)) + kv("Responsible Person", rec.responsiblePerson) + kv("Received", rec.received) + kv("Notes", rec.notes);
+    html += kv("Supplier", rec.supplier) + kv("Category", rec.category) + kv("Quantity", fmtNum(rec.quantity)) + kv("Amount", fmtNum(rec.amount)) + kv("Expected Arrival", fmtDate(rec.expectedArrival)) + kv("Responsible Person", rec.responsiblePerson) + kv("Received", rec.received) + kv("Notes", rec.notes);
     html += `<label>Status</label><select id="editStatus">${["Need Identified", "Pending Approval", "Approved", "Ordered", "Paid", "Awaiting Supplier", "Received", "Completed", "Rejected"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<div class="form-grid"><div><label>Ordered</label><select id="editOrdered">${["No", "Yes"].map(v => `<option ${v === rec.ordered ? "selected" : ""}>${v}</option>`).join("")}</select></div><div><label>Paid</label><select id="editPaid">${["No", "Yes"].map(v => `<option ${v === rec.paid ? "selected" : ""}>${v}</option>`).join("")}</select></div></div>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update Purchase</button>`;
@@ -1903,9 +2162,15 @@ function wireRecordModal(type, rec) {
       renderDeliveries(); renderDashboard();
     } else if (type === "purchase") {
       const patch = { status: newStatus, ordered: document.getElementById("editOrdered").value, paid: document.getElementById("editPaid").value };
+      const statusChangedTo = (target) => rec.status !== target && newStatus === target;
+      const willCreateDelivery = statusChangedTo("Ordered");
+      const willFlagDirector = statusChangedTo("Pending Approval");
       applyLocalPatch("purchases", "purchaseId", rec.purchaseId, patch);
       enqueue("updatePurchase", { purchaseId: rec.purchaseId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderPurchasing(); renderDashboard();
+      const updated = Object.assign({}, rec, patch);
+      if (willCreateDelivery) createIncomingDeliveryForPurchase(updated);
+      if (willFlagDirector) flagDirectorForPurchaseApproval(updated);
     }
     closeRecordModal();
   });
@@ -2038,8 +2303,7 @@ function pressAdminPinKey(key) {
       currentTier = "Manager";
       document.getElementById("mgrBadge").style.display = "inline-block";
       document.getElementById("adminNavItem").textContent = "Exit Admin";
-      document.getElementById("topbarAdminBtn").textContent = "🔓";
-      document.getElementById("topbarAdminBtn").title = "Exit Admin";
+      document.getElementById("tabbarAdminLabel").textContent = "Exit";
       adminEnteredPin = "";
       updateAdminPinDots();
       enqueue("logUser", { name: currentWorker, tier: currentTier });
@@ -2063,19 +2327,19 @@ function exitAdminTier() {
   currentTier = "Employee";
   document.getElementById("mgrBadge").style.display = "none";
   document.getElementById("adminNavItem").textContent = "Admin";
-  document.getElementById("topbarAdminBtn").textContent = "🔒";
-  document.getElementById("topbarAdminBtn").title = "Admin";
+  document.getElementById("tabbarAdminLabel").textContent = "Admin";
   renderDashboard();
   showScreen("dashboard");
 }
 document.getElementById("adminNavItem").addEventListener("click", () => {
   if (currentTier === "Manager") exitAdminTier();
 });
-// Sidebar is desktop-only (hidden below 1080px), so the topbar carries the
-// only way into Admin on mobile — same PIN gate either way.
-document.getElementById("topbarAdminBtn").addEventListener("click", () => {
+// Sidebar is desktop-only (hidden below 1080px) — the tabbar's Admin tab
+// is mobile's only way in, same PIN gate either way. The generic
+// .tab[data-screen] listener already sends a tap here to adminGate; this
+// only needs to handle tapping it again once already elevated.
+document.getElementById("tabbarAdminItem").addEventListener("click", () => {
   if (currentTier === "Manager") exitAdminTier();
-  else showScreen("adminGate");
 });
 
 // ---------- boot ----------
