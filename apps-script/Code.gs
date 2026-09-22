@@ -101,6 +101,8 @@ function doPost(e) {
         return jsonOut(handleCreatePurchase(payload));
       case "updatePurchase":
         return jsonOut(handleUpdatePurchase(payload));
+      case "archiveRecord":
+        return jsonOut(handleArchiveRecord(payload));
       default:
         return errorOut("Unknown action: " + action);
     }
@@ -286,4 +288,25 @@ function handleUpdatePurchase(payload) {
   updateRecord("Purchases", purchaseId, patch);
   logActivity(payload.updatedBy, payload.tier, "Purchase", purchaseId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
   return { status: "ok", purchaseId: purchaseId };
+}
+
+// ---------- Archive (Section 5/24: soft, reversible — never a hard
+// delete, so History & Search and the Activity Log stay complete) ----------
+var ARCHIVABLE_SHEETS = {
+  task: "Tasks", production: "Production", delivery: "Deliveries",
+  purchase: "Purchases", communication: "Communications",
+  attention: "DirectorAttention", event: "Calendar"
+};
+function handleArchiveRecord(payload) {
+  var sheetName = ARCHIVABLE_SHEETS[payload.recordType];
+  if (!sheetName) return { status: "error", message: "Unknown record type: " + payload.recordType };
+  var idValue = payload.id;
+  if (!idValue) return { status: "error", message: "id is required" };
+  var before = getRowById(sheetName, idValue);
+  if (!before) return { status: "error", message: "Record not found: " + idValue };
+  var archived = payload.archived !== false;
+  var patch = { archived: archived ? "Yes" : "No", archivedDate: archived ? new Date().toISOString() : "" };
+  updateRecord(sheetName, idValue, patch);
+  logActivity(payload.updatedBy, payload.tier, sheetName, idValue, archived ? "Archived" : "Unarchived", "", "", "");
+  return { status: "ok" };
 }

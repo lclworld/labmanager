@@ -20,13 +20,13 @@ function getSpreadsheet() {
 // column order on the sheet — never reorder without migrating existing rows.
 var SCHEMA = {
   Users: ["User ID", "Name", "Tier", "Last active", "First seen"],
-  Tasks: ["Task ID", "Title", "Description", "Category", "Status", "Priority", "Assigned to", "Created by", "Created date", "Due date", "Completed date", "Director attention flag", "Missing information", "Notes", "Related record", "Last updated"],
-  Production: ["Production ID", "Client", "Product", "Inventory reference", "Batch size", "Planned date", "Assigned staff", "Packaging readiness", "Label readiness", "Box readiness", "Batch sheet status", "SOP status", "Production status", "QC status", "Filling status", "Final status", "Blocker", "Director review status", "Notes", "Created by", "Created date", "Last updated"],
-  Deliveries: ["Delivery ID", "Direction", "Client or supplier", "Items", "Delivery date", "Expected time", "Contact", "Packaging status", "Label status", "Box status", "Client confirmation", "Payment status", "Cost", "Status", "Notes", "Created by", "Created date", "Last updated"],
-  Purchases: ["Purchase ID", "Supplier", "Item", "Category", "Quantity", "Amount", "Ordered", "Paid", "Expected arrival", "Received", "Responsible person", "Status", "Notes", "Created by", "Created date", "Last updated"],
-  Communications: ["Communication ID", "Date", "Type", "Related record", "Sender", "Recipient", "Message", "Action required", "Status", "Follow-up date", "Created by", "Last updated"],
-  DirectorAttention: ["Attention ID", "Related record", "Category", "Issue", "What is needed from Director", "Missing information", "Flagged by", "Date flagged", "Priority", "Deadline", "Status", "Director response", "Date resolved"],
-  Calendar: ["Event ID", "Title", "Date", "Start time", "End time", "Event type", "Owner", "Related record", "Location", "Notes", "Status", "Created by", "Last updated"],
+  Tasks: ["Task ID", "Title", "Description", "Category", "Status", "Priority", "Assigned to", "Created by", "Created date", "Due date", "Completed date", "Director attention flag", "Missing information", "Notes", "Related record", "Last updated", "Archived", "Archived date"],
+  Production: ["Production ID", "Client", "Product", "Inventory reference", "Batch size", "Planned date", "Assigned staff", "Packaging readiness", "Label readiness", "Box readiness", "Batch sheet status", "SOP status", "Production status", "QC status", "Filling status", "Final status", "Blocker", "Director review status", "Notes", "Created by", "Created date", "Last updated", "Archived", "Archived date"],
+  Deliveries: ["Delivery ID", "Direction", "Client or supplier", "Items", "Delivery date", "Expected time", "Contact", "Packaging status", "Label status", "Box status", "Client confirmation", "Payment status", "Cost", "Status", "Notes", "Created by", "Created date", "Last updated", "Archived", "Archived date"],
+  Purchases: ["Purchase ID", "Supplier", "Item", "Category", "Quantity", "Amount", "Ordered", "Paid", "Expected arrival", "Received", "Responsible person", "Status", "Notes", "Created by", "Created date", "Last updated", "Archived", "Archived date"],
+  Communications: ["Communication ID", "Date", "Type", "Related record", "Sender", "Recipient", "Message", "Action required", "Status", "Follow-up date", "Created by", "Last updated", "Archived", "Archived date"],
+  DirectorAttention: ["Attention ID", "Related record", "Category", "Issue", "What is needed from Director", "Missing information", "Flagged by", "Date flagged", "Priority", "Deadline", "Status", "Director response", "Date resolved", "Archived", "Archived date"],
+  Calendar: ["Event ID", "Title", "Date", "Start time", "End time", "Event type", "Owner", "Related record", "Location", "Notes", "Status", "Created by", "Last updated", "Archived", "Archived date"],
   ActivityLog: ["Log ID", "Timestamp", "User", "Tier", "Record type", "Record ID", "Action", "Previous status", "New status", "Details"]
 };
 

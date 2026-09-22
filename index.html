@@ -335,6 +335,7 @@
       <button data-status="Waiting">Waiting</button>
       <button data-status="Blocked">Blocked</button>
       <button data-status="Completed">Completed</button>
+      <button data-status="__archived__">Archived</button>
     </div>
     <div class="card"><div id="taskList"></div></div>
   </div>
@@ -342,7 +343,7 @@
   <!-- CALENDAR -->
   <div class="screen" id="calendar">
     <h2 class="title">Calendar</h2>
-    <div class="hint" style="margin:-8px 0 14px;">List view for now — month/week/day grid views can follow once this is in daily use.</div>
+    <div class="hint" style="margin:-8px 0 14px;">Everything with a date, pulled in automatically — task due dates, production plans, deliveries, purchase arrivals, and Director Attention deadlines — nothing here needs entering twice. List view for now; month/week/day grid views can follow once this is in daily use.</div>
     <button class="btn primary" id="newEventBtn">+ New Event</button>
     <div class="card" id="eventForm" style="display:none;">
       <label>Title</label><input id="eventTitle" placeholder="Event title">
@@ -358,17 +359,31 @@
       <label>Notes</label><textarea id="eventNotes" placeholder="Optional"></textarea>
       <button class="btn primary" id="saveEventBtn">Save Event</button>
     </div>
+    <div class="filter-row" id="calendarFilter">
+      <button data-kind="all" class="active">All</button>
+      <button data-kind="Task">Tasks</button>
+      <button data-kind="Event">Events</button>
+      <button data-kind="Production">Production</button>
+      <button data-kind="Delivery">Deliveries</button>
+      <button data-kind="Purchase">Purchases</button>
+      <button data-kind="Director Attention">Director Attention</button>
+      <button data-kind="__archived__">Archived</button>
+    </div>
     <div class="card"><div id="calendarList"></div></div>
   </div>
 
   <!-- PLANNER -->
   <div class="screen" id="planner">
     <h2 class="title">Planner</h2>
-    <div class="hint" style="margin:-8px 0 14px;">Combines Tasks and Calendar for now — Production, Deliveries and Purchasing feed in during Phase 4.</div>
+    <div class="hint" style="margin:-8px 0 14px;">Everything with a date, grouped by when it's due — Tasks, Calendar, Production, Deliveries, Purchasing and Director Attention deadlines all pulled in automatically.</div>
     <div class="filter-row" id="plannerFilter">
       <button data-kind="all" class="active">All</button>
-      <button data-kind="task">Tasks</button>
-      <button data-kind="event">Events</button>
+      <button data-kind="Task">Tasks</button>
+      <button data-kind="Event">Events</button>
+      <button data-kind="Production">Production</button>
+      <button data-kind="Delivery">Deliveries</button>
+      <button data-kind="Purchase">Purchases</button>
+      <button data-kind="Director Attention">Director Attention</button>
     </div>
     <div id="plannerBody"></div>
   </div>
@@ -394,6 +409,7 @@
       <button data-status="all" class="active">All</button>
       <button data-status="Open">Open</button>
       <button data-status="Resolved">Resolved</button>
+      <button data-status="__archived__">Archived</button>
     </div>
     <div class="card"><div id="attentionList"></div></div>
   </div>
@@ -424,6 +440,10 @@
         <div><label>Follow-up Date</label><input type="date" id="commFollowUp"></div>
       </div>
       <button class="btn primary" id="saveCommBtn">Save</button>
+    </div>
+    <div class="filter-row" id="commFilter">
+      <button data-status="all" class="active">Active</button>
+      <button data-status="__archived__">Archived</button>
     </div>
     <div id="commBody"></div>
   </div>
@@ -472,6 +492,7 @@
       <button data-status="IN PRODUCTION">In Production</button>
       <button data-status="QC">QC</button>
       <button data-status="COMPLETED">Completed</button>
+      <button data-status="__archived__">Archived</button>
     </div>
     <div class="card"><div id="productionList"></div></div>
   </div>
@@ -501,6 +522,7 @@
       <button data-direction="all" class="active">All</button>
       <button data-direction="Incoming">Incoming</button>
       <button data-direction="Outgoing">Outgoing</button>
+      <button data-direction="__archived__">Archived</button>
     </div>
     <div class="card"><div id="deliveryList"></div></div>
   </div>
@@ -529,6 +551,7 @@
       <button data-status="Ordered">Ordered</button>
       <button data-status="Awaiting Supplier">Awaiting Supplier</button>
       <button data-status="Received">Received</button>
+      <button data-status="__archived__">Archived</button>
     </div>
     <div class="card"><div id="purchaseList"></div></div>
   </div>
@@ -569,8 +592,8 @@
 // Change these PIN placeholders before real use.
 // ===================================================================
 const SCRIPT_URL = "";
-const STAFF_PIN = "1234";
-const ADMIN_PIN = "9876";
+const STAFF_PIN = "2505";
+const ADMIN_PIN = "2635";
 
 // ---------- offline-first cache + sync queue (own keys, own namespace) ----------
 const CACHE_KEY = "lcl_oc_cache_v1";
@@ -733,7 +756,7 @@ function renderDashboard() {
   const cache = loadCache();
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = (val === undefined || val === null) ? "—" : val; };
 
-  const production = cache.production || [];
+  const production = (cache.production || []).filter(p => p.archived !== "Yes");
   const activeProduction = production.filter(p => p.productionStatus !== "COMPLETED");
   set("statProduction", activeProduction.length);
   const planned = production.filter(p => p.productionStatus === "READY" || !p.productionStatus).length;
@@ -743,7 +766,7 @@ function renderDashboard() {
   const prodHint = document.getElementById("productionHint");
   if (prodHint) prodHint.textContent = planned + " planned · " + ready + " ready · " + blocked + " blocked · " + inProduction + " in production";
 
-  const deliveries = cache.deliveries || [];
+  const deliveries = (cache.deliveries || []).filter(d => d.archived !== "Yes");
   const incoming = deliveries.filter(d => d.direction === "Incoming");
   const outgoing = deliveries.filter(d => d.direction === "Outgoing");
   const incomingOpen = incoming.filter(d => d.status !== "Delivered" && d.status !== "Cancelled");
@@ -758,7 +781,7 @@ function renderDashboard() {
     outgoingHint.textContent = notReady + " packaging not ready";
   }
 
-  const purchases = cache.purchases || [];
+  const purchases = (cache.purchases || []).filter(p => p.archived !== "Yes");
   const openPurchases = purchases.filter(p => p.status !== "Completed" && p.status !== "Rejected");
   set("statPurchases", openPurchases.length);
   const pending = openPurchases.filter(p => p.status === "Need Identified" || p.status === "Pending Approval").length;
@@ -767,7 +790,7 @@ function renderDashboard() {
   const purHint = document.getElementById("purchasingHint");
   if (purHint) purHint.textContent = pending + " pending · " + awaitingPayment + " awaiting payment · " + awaitingSupplier + " awaiting supplier";
 
-  const attention = cache.directorAttention || [];
+  const attention = (cache.directorAttention || []).filter(a => a.archived !== "Yes");
   const outstanding = attention.filter(a => a.status === "Open");
   set("statDirectorAttention", outstanding.length);
   const attnHint = document.getElementById("directorAttentionHint");
@@ -782,7 +805,7 @@ function renderDashboard() {
     }
   }
 
-  const tasks = cache.tasks || [];
+  const tasks = (cache.tasks || []).filter(t => t.archived !== "Yes");
   const openTasks = tasks.filter(t => t.status !== "Completed" && t.status !== "Cancelled");
   set("statTasks", openTasks.length);
   const today = todayStr();
@@ -792,7 +815,7 @@ function renderDashboard() {
   const teamHint = document.getElementById("teamHint");
   if (teamHint) teamHint.textContent = dueToday + " due today · " + overdueTasks + " overdue · " + mine + " assigned to you";
 
-  const events = cache.calendarEvents || [];
+  const events = (cache.calendarEvents || []).filter(e => e.archived !== "Yes");
   const upcoming = events.filter(e => e.status !== "Cancelled" && e.date >= today);
   set("statCalendar", upcoming.length);
   const todaysEvents = upcoming.filter(e => e.date === today).length;
@@ -800,6 +823,12 @@ function renderDashboard() {
   if (calHint) calHint.textContent = todaysEvents + " today";
 
   renderNotifBadge();
+  // Calendar and Planner aggregate every entity's dates, so they need to
+  // stay fresh after any create/update anywhere — piggybacking on
+  // renderDashboard() (already called after every mutation in the app)
+  // is simpler and safer than chasing down every call site individually.
+  renderCalendar();
+  renderPlanner();
 }
 
 function renderAll() {
@@ -864,9 +893,13 @@ document.getElementById("taskFilter").addEventListener("click", (e) => {
 function isTaskOverdue(t) {
   return t.dueDate && t.dueDate < todayStr() && t.status !== "Completed" && t.status !== "Cancelled";
 }
+function filterByStatusOrArchive(list, filterValue, statusKey) {
+  if (filterValue === ARCHIVED_FILTER) return list.filter(r => r.archived === "Yes");
+  return list.filter(r => r.archived !== "Yes" && (filterValue === "all" || r[statusKey] === filterValue));
+}
 function renderTasks() {
   const cache = loadCache();
-  const tasks = (cache.tasks || []).filter(t => taskFilterStatus === "all" || t.status === taskFilterStatus);
+  const tasks = filterByStatusOrArchive(cache.tasks || [], taskFilterStatus, "status");
   const list = document.getElementById("taskList");
   if (!tasks.length) { list.innerHTML = '<div class="empty-state">No tasks yet.</div>'; return; }
   list.innerHTML = tasks.map(t => `
@@ -923,23 +956,116 @@ document.getElementById("saveEventBtn").addEventListener("click", () => {
   document.getElementById("eventForm").style.display = "none";
   enqueue("createCalendarEvent", fields);
 });
-function renderCalendar() {
+// ---------- unified dated items (Calendar + Planner share this) ----------
+// Every screen's own record IS the source of truth for its date (a task's
+// due date, a production's planned date, ...) — nothing gets re-typed
+// into a separate calendar entry. "Event" is the one kind that's actually
+// created here, for things with no other natural home (meetings etc).
+const ARCHIVED_FILTER = "__archived__";
+function collectAllDatedItems() {
   const cache = loadCache();
-  const events = (cache.calendarEvents || []).slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const items = [];
+  (cache.tasks || []).forEach(t => {
+    if (!t.dueDate) return;
+    items.push({ kind: "Task", type: "task", id: t.taskId, title: t.title, date: t.dueDate, meta: (t.assignedTo || "Unassigned") + " · " + (t.category || "General"), status: t.status, archived: t.archived === "Yes" });
+  });
+  (cache.calendarEvents || []).forEach(ev => {
+    if (!ev.date) return;
+    items.push({ kind: "Event", type: "event", id: ev.eventId, title: ev.title, date: ev.date, meta: (ev.eventType || "Other") + (ev.owner ? " · " + ev.owner : ""), status: ev.status, archived: ev.archived === "Yes" });
+  });
+  (cache.production || []).forEach(p => {
+    if (!p.plannedDate) return;
+    items.push({ kind: "Production", type: "production", id: p.productionId, title: p.product, date: p.plannedDate, meta: (p.client ? p.client + " · " : "") + (p.productionStatus || ""), status: p.productionStatus, archived: p.archived === "Yes" });
+  });
+  (cache.deliveries || []).forEach(d => {
+    if (!d.deliveryDate) return;
+    items.push({ kind: "Delivery", type: "delivery", id: d.deliveryId, title: d.direction + " — " + (d.clientOrSupplier || ""), date: d.deliveryDate, meta: (d.items || "").slice(0, 40), status: d.status, archived: d.archived === "Yes" });
+  });
+  (cache.purchases || []).forEach(p => {
+    if (!p.expectedArrival) return;
+    items.push({ kind: "Purchase", type: "purchase", id: p.purchaseId, title: p.item, date: p.expectedArrival, meta: (p.supplier || "") + " · Expected arrival", status: p.status, archived: p.archived === "Yes" });
+  });
+  (cache.directorAttention || []).forEach(a => {
+    if (!a.deadline) return;
+    items.push({ kind: "Director Attention", type: "attention", id: a.attentionId, title: (a.issue || "").slice(0, 60), date: a.deadline, meta: "Deadline · " + (a.priority || "Normal"), status: a.status, archived: a.archived === "Yes" });
+  });
+  return items;
+}
+function isItemDone(it) {
+  if (it.type === "task") return it.status === "Completed" || it.status === "Cancelled";
+  if (it.type === "event") return it.status === "Cancelled";
+  if (it.type === "production") return it.status === "COMPLETED";
+  if (it.type === "delivery") return it.status === "Delivered" || it.status === "Cancelled";
+  if (it.type === "purchase") return it.status === "Received" || it.status === "Completed" || it.status === "Rejected";
+  if (it.type === "attention") return it.status === "Resolved" || it.status === "Approved" || it.status === "Rejected";
+  return false;
+}
+
+// ---------- Calendar ----------
+document.getElementById("newEventBtn").addEventListener("click", () => {
+  const form = document.getElementById("eventForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveEventBtn").addEventListener("click", () => {
+  const title = document.getElementById("eventTitle").value.trim();
+  const date = document.getElementById("eventDate").value;
+  if (!title) { document.getElementById("eventTitle").focus(); return; }
+  if (!date) { document.getElementById("eventDate").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    title: title,
+    date: date,
+    startTime: document.getElementById("eventStart").value,
+    endTime: document.getElementById("eventEnd").value,
+    eventType: document.getElementById("eventType").value,
+    owner: document.getElementById("eventOwner").value.trim(),
+    relatedRecord: document.getElementById("eventRelatedRecord").value.trim(),
+    location: document.getElementById("eventLocation").value.trim(),
+    notes: document.getElementById("eventNotes").value.trim(),
+    status: "Scheduled",
+    createdBy: currentWorker,
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.calendarEvents = cache.calendarEvents || [];
+  cache.calendarEvents.unshift(Object.assign({ eventId: "EVT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderCalendar();
+  renderPlanner();
+  renderDashboard();
+  ["eventTitle", "eventDate", "eventStart", "eventEnd", "eventOwner", "eventRelatedRecord", "eventLocation", "eventNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("eventForm").style.display = "none";
+  enqueue("createCalendarEvent", fields);
+});
+let calendarFilterKind = "all";
+document.getElementById("calendarFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#calendarFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  calendarFilterKind = btn.dataset.kind;
+  renderCalendar();
+});
+function renderCalendar() {
+  const showArchived = calendarFilterKind === ARCHIVED_FILTER;
+  let items = collectAllDatedItems().filter(it => showArchived ? it.archived : !it.archived);
+  if (!showArchived && calendarFilterKind !== "all") items = items.filter(it => it.kind === calendarFilterKind);
+  items.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   const list = document.getElementById("calendarList");
-  if (!events.length) { list.innerHTML = '<div class="empty-state">No events yet.</div>'; return; }
-  list.innerHTML = events.map(ev => `
-    <div class="record-row" data-type="event" data-id="${escapeHtml(ev.eventId)}">
+  if (!list) return;
+  if (!items.length) { list.innerHTML = '<div class="empty-state">Nothing dated yet.</div>'; return; }
+  list.innerHTML = items.map(it => `
+    <div class="record-row" data-type="${it.type}" data-id="${escapeHtml(it.id)}">
       <div>
-        <div class="rr-title">${escapeHtml(ev.title)}</div>
-        <div class="rr-meta">${fmtDate(ev.date)}${ev.startTime ? " · " + escapeHtml(ev.startTime) : ""} · ${escapeHtml(ev.eventType || "Other")}</div>
+        <div class="rr-title">${escapeHtml(it.title)}</div>
+        <div class="rr-meta">${fmtDate(it.date)} · ${escapeHtml(it.kind)} · ${escapeHtml(it.meta)}</div>
       </div>
-      <div class="rr-right"><span class="pill ${statusClass(ev.status)}">${escapeHtml(ev.status || "Scheduled")}</span></div>
+      <div class="rr-right"><span class="pill ${statusClass(it.status)}">${escapeHtml(it.status || "")}</span></div>
     </div>`).join("");
 }
 document.getElementById("calendarList").addEventListener("click", (e) => {
   const row = e.target.closest(".record-row");
-  if (row) openRecordModal("event", row.dataset.id);
+  if (row) openRecordModal(row.dataset.type, row.dataset.id);
 });
 
 // ---------- Planner ----------
@@ -966,18 +1092,8 @@ function dayBucket(dateStr) {
   return "Later";
 }
 function renderPlanner() {
-  const cache = loadCache();
-  const items = [];
-  (cache.tasks || []).forEach(t => {
-    if (plannerKind === "event") return;
-    if (t.status === "Completed" || t.status === "Cancelled") return;
-    items.push({ kind: "task", id: t.taskId, title: t.title, date: t.dueDate, meta: (t.assignedTo || "Unassigned") + " · " + (t.category || "General"), status: t.status });
-  });
-  (cache.calendarEvents || []).forEach(ev => {
-    if (plannerKind === "task") return;
-    if (ev.status === "Cancelled") return;
-    items.push({ kind: "event", id: ev.eventId, title: ev.title, date: ev.date, meta: (ev.eventType || "Other") + (ev.owner ? " · " + ev.owner : ""), status: ev.status });
-  });
+  let items = collectAllDatedItems().filter(it => !it.archived && !isItemDone(it));
+  if (plannerKind !== "all") items = items.filter(it => it.kind === plannerKind);
   const order = ["Overdue", "Today", "Tomorrow", "This Week", "Next Week", "Later", "No Date"];
   const groups = {};
   items.forEach(it => { const b = dayBucket(it.date); (groups[b] = groups[b] || []).push(it); });
@@ -988,10 +1104,10 @@ function renderPlanner() {
     <div class="planner-group-title">${bucket}</div>
     <div class="card">
       ${groups[bucket].map(it => `
-        <div class="record-row" data-type="${it.kind}" data-id="${escapeHtml(it.id)}">
+        <div class="record-row" data-type="${it.type}" data-id="${escapeHtml(it.id)}">
           <div>
             <div class="rr-title">${escapeHtml(it.title)}</div>
-            <div class="rr-meta">${it.kind === "task" ? "Task" : "Event"} · ${escapeHtml(it.meta)}</div>
+            <div class="rr-meta">${escapeHtml(it.kind)} · ${escapeHtml(it.meta)}</div>
           </div>
           <div class="rr-right"><span class="pill ${statusClass(it.status)}">${escapeHtml(it.status || "")}</span></div>
         </div>`).join("")}
@@ -1046,7 +1162,7 @@ document.getElementById("attentionFilter").addEventListener("click", (e) => {
 });
 function renderDirectorAttention() {
   const cache = loadCache();
-  const items = (cache.directorAttention || []).filter(a => attentionFilterStatus === "all" || a.status === attentionFilterStatus);
+  const items = filterByStatusOrArchive(cache.directorAttention || [], attentionFilterStatus, "status");
   const list = document.getElementById("attentionList");
   if (!items.length) { list.innerHTML = '<div class="empty-state">Nothing flagged.</div>'; return; }
   list.innerHTML = items.map(a => `
@@ -1099,14 +1215,24 @@ document.getElementById("saveCommBtn").addEventListener("click", () => {
   document.getElementById("commForm").style.display = "none";
   enqueue("createCommunication", fields);
 });
+let commFilterStatus = "all";
+document.getElementById("commFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#commFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  commFilterStatus = btn.dataset.status;
+  renderCommunications();
+});
 function renderCommunications() {
   const cache = loadCache();
-  const items = cache.communications || [];
+  const showArchived = commFilterStatus === ARCHIVED_FILTER;
+  const items = (cache.communications || []).filter(c => showArchived ? c.archived === "Yes" : (c.archived !== "Yes" && c.status !== "Resolved"));
   const body = document.getElementById("commBody");
   const groups = {};
-  items.forEach(c => { if (c.status !== "Resolved") (groups[c.type] = groups[c.type] || []).push(c); });
+  items.forEach(c => { (groups[c.type] = groups[c.type] || []).push(c); });
   const nonEmpty = COMM_TYPES.filter(t => groups[t] && groups[t].length);
-  if (!nonEmpty.length) { body.innerHTML = '<div class="card"><div class="empty-state">Nothing outstanding.</div></div>'; return; }
+  if (!nonEmpty.length) { body.innerHTML = '<div class="card"><div class="empty-state">' + (showArchived ? "Nothing archived." : "Nothing outstanding.") + '</div></div>'; return; }
   body.innerHTML = nonEmpty.map(type => `
     <h3 class="section-title">${escapeHtml(type)}</h3>
     <div class="card">
@@ -1187,7 +1313,7 @@ document.getElementById("productionFilter").addEventListener("click", (e) => {
 });
 function renderProduction() {
   const cache = loadCache();
-  const records = (cache.production || []).filter(p => productionFilterStatus === "all" || p.productionStatus === productionFilterStatus);
+  const records = filterByStatusOrArchive(cache.production || [], productionFilterStatus, "productionStatus");
   const list = document.getElementById("productionList");
   if (!list) return;
   if (!records.length) { list.innerHTML = '<div class="empty-state">No production records yet.</div>'; return; }
@@ -1307,7 +1433,8 @@ document.getElementById("deliveryFilter").addEventListener("click", (e) => {
 });
 function renderDeliveries() {
   const cache = loadCache();
-  const items = (cache.deliveries || []).filter(d => deliveryFilterDirection === "all" || d.direction === deliveryFilterDirection);
+  const showArchived = deliveryFilterDirection === ARCHIVED_FILTER;
+  const items = (cache.deliveries || []).filter(d => showArchived ? d.archived === "Yes" : (d.archived !== "Yes" && (deliveryFilterDirection === "all" || d.direction === deliveryFilterDirection)));
   const list = document.getElementById("deliveryList");
   if (!list) return;
   if (!items.length) { list.innerHTML = '<div class="empty-state">No deliveries yet.</div>'; return; }
@@ -1372,7 +1499,7 @@ document.getElementById("purchaseFilter").addEventListener("click", (e) => {
 });
 function renderPurchasing() {
   const cache = loadCache();
-  const items = (cache.purchases || []).filter(p => purchaseFilterStatus === "all" || p.status === purchaseFilterStatus);
+  const items = filterByStatusOrArchive(cache.purchases || [], purchaseFilterStatus, "status");
   const list = document.getElementById("purchaseList");
   if (!list) return;
   if (!items.length) { list.innerHTML = '<div class="empty-state">No purchases yet.</div>'; return; }
@@ -1401,23 +1528,24 @@ function computeNotifications() {
   const cache = loadCache();
   const today = todayStr();
   const alerts = [];
+  const notArchived = r => r.archived !== "Yes";
 
-  (cache.directorAttention || []).filter(a => a.status === "Open").forEach(a =>
+  (cache.directorAttention || []).filter(a => a.status === "Open" && notArchived(a)).forEach(a =>
     alerts.push({ kind: "Director Attention", screen: "directorAttention", type: "attention", id: a.attentionId, text: (a.issue || "").slice(0, 70), severity: (a.priority === "Urgent" || a.priority === "High") ? 3 : 2 }));
 
-  (cache.production || []).filter(p => p.productionStatus === "BLOCKED").forEach(p =>
+  (cache.production || []).filter(p => p.productionStatus === "BLOCKED" && notArchived(p)).forEach(p =>
     alerts.push({ kind: "Production Blocked", screen: "production", type: "production", id: p.productionId, text: p.product + (p.client ? " — " + p.client : ""), severity: 3 }));
 
-  (cache.purchases || []).filter(p => p.expectedArrival && p.expectedArrival < today && p.status !== "Received" && p.status !== "Completed" && p.status !== "Rejected").forEach(p =>
+  (cache.purchases || []).filter(p => p.expectedArrival && p.expectedArrival < today && p.status !== "Received" && p.status !== "Completed" && p.status !== "Rejected" && notArchived(p)).forEach(p =>
     alerts.push({ kind: "Purchase Overdue", screen: "purchasing", type: "purchase", id: p.purchaseId, text: p.item + (p.supplier ? " — " + p.supplier : ""), severity: 2 }));
 
-  (cache.deliveries || []).filter(d => d.deliveryDate && d.deliveryDate <= today && d.status !== "Delivered" && d.status !== "Cancelled").forEach(d =>
+  (cache.deliveries || []).filter(d => d.deliveryDate && d.deliveryDate <= today && d.status !== "Delivered" && d.status !== "Cancelled" && notArchived(d)).forEach(d =>
     alerts.push({ kind: "Delivery Needs Action", screen: "deliveries", type: "delivery", id: d.deliveryId, text: d.direction + " — " + (d.clientOrSupplier || ""), severity: 2 }));
 
-  (cache.tasks || []).filter(isTaskOverdue).forEach(t =>
+  (cache.tasks || []).filter(t => isTaskOverdue(t) && notArchived(t)).forEach(t =>
     alerts.push({ kind: "Task Overdue", screen: "tasks", type: "task", id: t.taskId, text: t.title, severity: 1 }));
 
-  (cache.communications || []).filter(c => c.type === "Supplier Needs Follow-Up" && c.status !== "Resolved" && c.followUpDate && c.followUpDate <= today).forEach(c =>
+  (cache.communications || []).filter(c => c.type === "Supplier Needs Follow-Up" && c.status !== "Resolved" && c.followUpDate && c.followUpDate <= today && notArchived(c)).forEach(c =>
     alerts.push({ kind: "Supplier Follow-Up Due", screen: "communications", type: "communication", id: c.communicationId, text: (c.message || "").slice(0, 70), severity: 1 }));
 
   alerts.sort((a, b) => b.severity - a.severity);
@@ -1613,15 +1741,13 @@ function renderInventoryLookup() {
 document.getElementById("inventorySearch").addEventListener("input", renderInventoryLookup);
 
 // ---------- shared record modal (Task / Event / Director Attention / Communication) ----------
+const RECORD_ARRAY_KEYS = { task: "tasks", event: "calendarEvents", attention: "directorAttention", communication: "communications", production: "production", delivery: "deliveries", purchase: "purchases" };
+const RECORD_ID_KEYS = { task: "taskId", event: "eventId", attention: "attentionId", communication: "communicationId", production: "productionId", delivery: "deliveryId", purchase: "purchaseId" };
 function findRecord(type, id) {
   const cache = loadCache();
-  if (type === "task") return (cache.tasks || []).find(t => t.taskId === id);
-  if (type === "event") return (cache.calendarEvents || []).find(e => e.eventId === id);
-  if (type === "attention") return (cache.directorAttention || []).find(a => a.attentionId === id);
-  if (type === "communication") return (cache.communications || []).find(c => c.communicationId === id);
-  if (type === "production") return (cache.production || []).find(p => p.productionId === id);
-  if (type === "delivery") return (cache.deliveries || []).find(d => d.deliveryId === id);
-  if (type === "purchase") return (cache.purchases || []).find(p => p.purchaseId === id);
+  const arr = cache[RECORD_ARRAY_KEYS[type]] || [];
+  const idKey = RECORD_ID_KEYS[type];
+  return arr.find(r => r[idKey] === id);
 }
 function buildInventorySufficiencyHtml(reference) {
   if (!reference) return "";
@@ -1706,8 +1832,10 @@ function buildRecordHtml(type, rec) {
       html += `<div class="manager-only"><div class="mo-label">Manager Approval</div><button class="btn dark" id="approvePurchaseBtn">Approve Purchase</button></div>`;
     }
   }
-  const idKeys = { task: "taskId", event: "eventId", attention: "attentionId", communication: "communicationId", production: "productionId", delivery: "deliveryId", purchase: "purchaseId" };
-  if (idKeys[type]) html += buildRecordHistoryHtml(rec[idKeys[type]]);
+  if (RECORD_ID_KEYS[type]) {
+    html += buildRecordHistoryHtml(rec[RECORD_ID_KEYS[type]]);
+    html += `<button class="btn dark" id="archiveToggleBtn">${rec.archived === "Yes" ? "Unarchive" : "Archive"}</button>`;
+  }
   return html;
 }
 function applyLocalPatch(arrayKey, idKey, idVal, patch) {
@@ -1720,8 +1848,7 @@ function applyLocalPatch(arrayKey, idKey, idVal, patch) {
 function wireRecordModal(type, rec) {
   document.getElementById("recordCloseBtn").addEventListener("click", closeRecordModal);
   const saveBtn = document.getElementById("recordSaveBtn");
-  if (!saveBtn) return;
-  saveBtn.addEventListener("click", () => {
+  if (saveBtn) saveBtn.addEventListener("click", () => {
     const newStatus = document.getElementById("editStatus").value;
     if (type === "task") {
       const patch = { status: newStatus };
@@ -1779,6 +1906,18 @@ function wireRecordModal(type, rec) {
       applyLocalPatch("purchases", "purchaseId", rec.purchaseId, patch);
       enqueue("updatePurchase", { purchaseId: rec.purchaseId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderPurchasing(); renderDashboard();
+      closeRecordModal();
+    });
+  }
+  const archiveBtn = document.getElementById("archiveToggleBtn");
+  if (archiveBtn) {
+    archiveBtn.addEventListener("click", () => {
+      const willArchive = rec.archived !== "Yes";
+      const patch = { archived: willArchive ? "Yes" : "No", archivedDate: willArchive ? new Date().toISOString() : "" };
+      const idKey = RECORD_ID_KEYS[type];
+      applyLocalPatch(RECORD_ARRAY_KEYS[type], idKey, rec[idKey], patch);
+      enqueue("archiveRecord", { recordType: type, id: rec[idKey], archived: willArchive, updatedBy: currentWorker, tier: currentTier });
+      renderAll();
       closeRecordModal();
     });
   }
