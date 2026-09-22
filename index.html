@@ -148,6 +148,9 @@
   .cal-day.selected { background: rgba(255,145,77,0.18); border-color: var(--orange); }
   .cal-day .cal-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--orange); }
   .cal-day .cal-dot.warn { background: #c23; }
+  .cal-agenda-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 22px 0 10px; }
+  .cal-agenda-head .section-title { margin: 0; }
+  .cal-agenda-head .btn { width: auto; margin: 0; padding: 8px 14px; white-space: nowrap; font-size: 0.78rem; }
 
   .planner-group-title { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brown); margin: 18px 0 8px; }
   .planner-group-title:first-of-type { margin-top: 0; }
@@ -426,7 +429,10 @@
     </div>
     <div class="calendar-grid" id="calendarGrid"></div>
 
-    <h3 class="section-title" id="calAgendaTitle">Today</h3>
+    <div class="cal-agenda-head">
+      <h3 class="section-title" id="calAgendaTitle">Today</h3>
+      <button class="btn ghost" id="calAddEventBtn">+ Add Event</button>
+    </div>
     <div class="card"><div id="calendarAgenda"></div></div>
   </div>
 
@@ -1021,42 +1027,6 @@ document.getElementById("taskList").addEventListener("click", (e) => {
   if (row) openRecordModal("task", row.dataset.id);
 });
 
-// ---------- Calendar ----------
-document.getElementById("newEventBtn").addEventListener("click", () => {
-  const form = document.getElementById("eventForm");
-  form.style.display = form.style.display === "none" ? "block" : "none";
-});
-document.getElementById("saveEventBtn").addEventListener("click", () => {
-  const title = document.getElementById("eventTitle").value.trim();
-  const date = document.getElementById("eventDate").value;
-  if (!title) { document.getElementById("eventTitle").focus(); return; }
-  if (!date) { document.getElementById("eventDate").focus(); return; }
-  const now = new Date().toISOString();
-  const fields = {
-    title: title,
-    date: date,
-    startTime: document.getElementById("eventStart").value,
-    endTime: document.getElementById("eventEnd").value,
-    eventType: document.getElementById("eventType").value,
-    owner: document.getElementById("eventOwner").value.trim(),
-    relatedRecord: document.getElementById("eventRelatedRecord").value.trim(),
-    location: document.getElementById("eventLocation").value.trim(),
-    notes: document.getElementById("eventNotes").value.trim(),
-    status: "Scheduled",
-    createdBy: currentWorker,
-    lastUpdated: now
-  };
-  const cache = loadCache();
-  cache.calendarEvents = cache.calendarEvents || [];
-  cache.calendarEvents.unshift(Object.assign({ eventId: "EVT-pending-" + Date.now(), pending: true }, fields));
-  saveCache(cache);
-  renderCalendar();
-  renderPlanner();
-  renderDashboard();
-  ["eventTitle", "eventDate", "eventStart", "eventEnd", "eventOwner", "eventRelatedRecord", "eventLocation", "eventNotes"].forEach(id => document.getElementById(id).value = "");
-  document.getElementById("eventForm").style.display = "none";
-  enqueue("createCalendarEvent", fields);
-});
 // ---------- unified dated items (Calendar + Planner share this) ----------
 // Every screen's own record IS the source of truth for its date (a task's
 // due date, a production's planned date, ...) — nothing gets re-typed
@@ -1170,6 +1140,15 @@ document.getElementById("calendarGrid").addEventListener("click", (e) => {
 document.getElementById("calendarAgenda").addEventListener("click", (e) => {
   const row = e.target.closest(".record-row");
   if (row) openRecordModal(row.dataset.type, row.dataset.id);
+});
+// Tapping a day selects it (updates the grid + agenda below); this button
+// is how you actually add something to that day — pre-fills the date so
+// there's no re-typing it.
+document.getElementById("calAddEventBtn").addEventListener("click", () => {
+  document.getElementById("eventForm").style.display = "block";
+  document.getElementById("eventDate").value = calSelectedDate;
+  document.getElementById("eventForm").scrollIntoView({ behavior: "smooth", block: "center" });
+  document.getElementById("eventTitle").focus();
 });
 function renderCalendar() {
   const grid = document.getElementById("calendarGrid");
