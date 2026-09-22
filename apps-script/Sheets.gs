@@ -25,7 +25,7 @@ var SCHEMA = {
   Deliveries: ["Delivery ID", "Direction", "Client or supplier", "Items", "Delivery date", "Expected time", "Contact", "Packaging status", "Label status", "Box status", "Client confirmation", "Payment status", "Cost", "Status", "Notes", "Created by", "Created date", "Last updated"],
   Purchases: ["Purchase ID", "Supplier", "Item", "Category", "Quantity", "Amount", "Ordered", "Paid", "Expected arrival", "Received", "Responsible person", "Status", "Notes", "Created by", "Created date", "Last updated"],
   Communications: ["Communication ID", "Date", "Type", "Related record", "Sender", "Recipient", "Message", "Action required", "Status", "Follow-up date", "Created by", "Last updated"],
-  DirectorAttention: ["Attention ID", "Related record", "Category", "Issue", "What is needed from Director", "Missing information", "Flagged by", "Date flagged", "Priority", "Status", "Director response", "Date resolved"],
+  DirectorAttention: ["Attention ID", "Related record", "Category", "Issue", "What is needed from Director", "Missing information", "Flagged by", "Date flagged", "Priority", "Deadline", "Status", "Director response", "Date resolved"],
   Calendar: ["Event ID", "Title", "Date", "Start time", "End time", "Event type", "Owner", "Related record", "Location", "Notes", "Status", "Created by", "Last updated"],
   ActivityLog: ["Log ID", "Timestamp", "User", "Tier", "Record type", "Record ID", "Action", "Previous status", "New status", "Details"]
 };
@@ -119,6 +119,68 @@ function appendRow(name, rowObject) {
     return rowObject.hasOwnProperty(key) ? rowObject[key] : "";
   });
   sheet.appendRow(row);
+}
+
+// Generic create: locks, generates the next ID for this sheet, appends a
+// row built from `fields` (keys matching headerToKey(SCHEMA[name][i])),
+// and returns the new ID. Shared by every Phase 3+ "create___" handler.
+function createRecord(name, fields) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var idKey = headerToKey(SCHEMA[name][0]);
+    var id = nextId(name);
+    var row = Object.assign({}, fields);
+    row[idKey] = id;
+    appendRow(name, row);
+    return id;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Generic read-one: finds the row whose ID column matches idValue.
+function getRowById(name, idValue) {
+  var rows = getAllRows(name);
+  var idKey = headerToKey(SCHEMA[name][0]);
+  for (var i = 0; i < rows.length; i++) {
+    if (String(rows[i][idKey]) === String(idValue)) return rows[i];
+  }
+  return null;
+}
+
+// Generic patch-by-id: locks, finds the row by its ID column, and writes
+// only the columns present in `fields`. Auto-stamps "Last updated" when
+// the sheet has that column and the caller didn't already set it. Shared
+// by every Phase 3+ "update___" handler — never silently drops a column
+// that isn't in `fields`.
+function updateRecord(name, idValue, fields) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = ensureSheet(name);
+    var keys = SCHEMA[name].map(headerToKey);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return false;
+    var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      if (String(ids[i][0]) === String(idValue)) {
+        var rowIndex = i + 2;
+        var patch = Object.assign({}, fields);
+        if (keys.indexOf("lastUpdated") >= 0 && !patch.hasOwnProperty("lastUpdated")) {
+          patch.lastUpdated = new Date().toISOString();
+        }
+        Object.keys(patch).forEach(function (key) {
+          var colIndex = keys.indexOf(key);
+          if (colIndex >= 0) sheet.getRange(rowIndex, colIndex + 1).setValue(patch[key]);
+        });
+        return true;
+      }
+    }
+    return false;
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function logActivity(user, tier, recordType, recordId, action, previousStatus, newStatus, details) {

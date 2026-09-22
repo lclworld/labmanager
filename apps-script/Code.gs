@@ -13,10 +13,10 @@
  *                                       (avoids a CORS preflight, same as Inventory)
  * Every response is JSON: {status:"ok", ...} or {status:"error", message:"..."}.
  *
- * Phase 2 scope: health check, dashboard bootstrap counts, and the Users
- * log (who has opened the app). Task/Production/Delivery/Purchase/etc.
- * read+write actions are added in Phase 3/4 — this file's job right now is
- * to prove the connection works and all nine tabs exist.
+ * Phase 2 added: health check, dashboard bootstrap counts, and the Users
+ * log. Phase 3 added: Tasks, Calendar, Director Attention, and
+ * Communications read+write. Production/Deliveries/Purchases follow in
+ * Phase 4.
  */
 
 function jsonOut(obj) {
@@ -38,6 +38,14 @@ function doGet(e) {
         return jsonOut(handleGetBootstrap());
       case "getUsers":
         return jsonOut({ status: "ok", users: getAllRows("Users") });
+      case "getTasks":
+        return jsonOut({ status: "ok", tasks: getAllRows("Tasks") });
+      case "getCalendar":
+        return jsonOut({ status: "ok", events: getAllRows("Calendar") });
+      case "getDirectorAttention":
+        return jsonOut({ status: "ok", items: getAllRows("DirectorAttention") });
+      case "getCommunications":
+        return jsonOut({ status: "ok", items: getAllRows("Communications") });
       default:
         return errorOut("Unknown action: " + action);
     }
@@ -55,6 +63,22 @@ function doPost(e) {
     switch (action) {
       case "logUser":
         return jsonOut(handleLogUser(payload));
+      case "createTask":
+        return jsonOut(handleCreateTask(payload));
+      case "updateTask":
+        return jsonOut(handleUpdateTask(payload));
+      case "createCalendarEvent":
+        return jsonOut(handleCreateCalendarEvent(payload));
+      case "updateCalendarEvent":
+        return jsonOut(handleUpdateCalendarEvent(payload));
+      case "flagDirectorAttention":
+        return jsonOut(handleFlagDirectorAttention(payload));
+      case "respondDirectorAttention":
+        return jsonOut(handleRespondDirectorAttention(payload));
+      case "createCommunication":
+        return jsonOut(handleCreateCommunication(payload));
+      case "updateCommunication":
+        return jsonOut(handleUpdateCommunication(payload));
       default:
         return errorOut("Unknown action: " + action);
     }
@@ -99,4 +123,85 @@ function handleLogUser(payload) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// ---------- Tasks ----------
+function handleCreateTask(payload) {
+  if (!payload.title) return { status: "error", message: "Title is required" };
+  var id = createRecord("Tasks", payload);
+  logActivity(payload.createdBy, "Employee", "Task", id, "Created", "", payload.status || "Not Started", payload.title);
+  return { status: "ok", taskId: id };
+}
+
+function handleUpdateTask(payload) {
+  var taskId = payload.taskId;
+  if (!taskId) return { status: "error", message: "taskId is required" };
+  var before = getRowById("Tasks", taskId);
+  if (!before) return { status: "error", message: "Task not found: " + taskId };
+  var patch = payload.patch || {};
+  if (patch.status === "Completed" && !patch.completedDate) patch.completedDate = new Date().toISOString();
+  updateRecord("Tasks", taskId, patch);
+  logActivity(payload.updatedBy, payload.tier, "Task", taskId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
+  return { status: "ok", taskId: taskId };
+}
+
+// ---------- Calendar ----------
+function handleCreateCalendarEvent(payload) {
+  if (!payload.title || !payload.date) return { status: "error", message: "Title and date are required" };
+  var id = createRecord("Calendar", payload);
+  logActivity(payload.createdBy, "Employee", "Calendar", id, "Created", "", payload.status || "Scheduled", payload.title);
+  return { status: "ok", eventId: id };
+}
+
+function handleUpdateCalendarEvent(payload) {
+  var eventId = payload.eventId;
+  if (!eventId) return { status: "error", message: "eventId is required" };
+  var before = getRowById("Calendar", eventId);
+  if (!before) return { status: "error", message: "Event not found: " + eventId };
+  var patch = payload.patch || {};
+  updateRecord("Calendar", eventId, patch);
+  logActivity(payload.updatedBy || "", "", "Calendar", eventId, "Updated", before.status || "", patch.status || "", "");
+  return { status: "ok", eventId: eventId };
+}
+
+// ---------- Director Attention ----------
+function handleFlagDirectorAttention(payload) {
+  if (!payload.issue) return { status: "error", message: "Issue is required" };
+  var id = createRecord("DirectorAttention", payload);
+  logActivity(payload.flaggedBy, "Employee", "DirectorAttention", id, "Flagged", "", "Open", payload.issue);
+  return { status: "ok", attentionId: id };
+}
+
+// Manager-tier action in the frontend's role model — like every other tier
+// boundary in this app, that's enforced client-side (same PIN-only model
+// LCL Inventory uses), not by this endpoint checking a credential.
+function handleRespondDirectorAttention(payload) {
+  var attentionId = payload.attentionId;
+  if (!attentionId) return { status: "error", message: "attentionId is required" };
+  var before = getRowById("DirectorAttention", attentionId);
+  if (!before) return { status: "error", message: "Not found: " + attentionId };
+  var patch = { directorResponse: payload.directorResponse || "", status: payload.newStatus || "Resolved" };
+  if (patch.status !== "Open") patch.dateResolved = new Date().toISOString();
+  updateRecord("DirectorAttention", attentionId, patch);
+  logActivity(payload.respondedBy, "Manager", "DirectorAttention", attentionId, "Director responded", before.status || "", patch.status, patch.directorResponse);
+  return { status: "ok", attentionId: attentionId };
+}
+
+// ---------- Communications ----------
+function handleCreateCommunication(payload) {
+  if (!payload.message) return { status: "error", message: "Message is required" };
+  var id = createRecord("Communications", payload);
+  logActivity(payload.createdBy, "Employee", "Communication", id, "Created", "", payload.status || "Open", payload.type || "");
+  return { status: "ok", communicationId: id };
+}
+
+function handleUpdateCommunication(payload) {
+  var communicationId = payload.communicationId;
+  if (!communicationId) return { status: "error", message: "communicationId is required" };
+  var before = getRowById("Communications", communicationId);
+  if (!before) return { status: "error", message: "Not found: " + communicationId };
+  var patch = payload.patch || {};
+  updateRecord("Communications", communicationId, patch);
+  logActivity(payload.updatedBy || "", "", "Communication", communicationId, "Updated", before.status || "", patch.status || "", "");
+  return { status: "ok", communicationId: communicationId };
 }

@@ -28,6 +28,8 @@
 
   @media (min-width: 768px) {
     .stat-row { flex-wrap: nowrap; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    .form-grid label, .form-grid input, .form-grid select, .form-grid textarea { grid-column: span 1; }
   }
 
   @media (min-width: 1080px) {
@@ -90,8 +92,43 @@
   .hint { font-size: 0.7rem; color: var(--brown); margin-top: 5px; line-height: 1.4; }
 
   label { display: block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--brown); margin: 12px 0 5px; }
-  input, select { width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 0.92rem; font-family: 'Urbanist', sans-serif; background: var(--white); }
-  input:focus, select:focus { outline: none; border-color: var(--orange); box-shadow: 0 0 0 3px rgba(255,145,77,0.16); }
+  label:first-child { margin-top: 0; }
+  input, select, textarea { width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 0.92rem; font-family: 'Urbanist', sans-serif; background: var(--white); }
+  textarea { resize: vertical; min-height: 70px; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--orange); box-shadow: 0 0 0 3px rgba(255,145,77,0.16); }
+
+  .filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .filter-row button { flex: 1; min-width: 90px; padding: 8px; border-radius: 10px; border: 1.5px solid var(--border); background: var(--white); font-size: 0.72rem; font-weight: 700; color: var(--brown); cursor: pointer; }
+  .filter-row button.active { border-color: var(--black); color: var(--black); background: rgba(255,145,77,0.1); }
+
+  .record-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .record-row:last-child { border-bottom: none; }
+  .record-row .rr-title { font-weight: 700; font-size: 0.88rem; }
+  .record-row .rr-meta { color: var(--brown); font-size: 0.72rem; margin-top: 3px; }
+  .record-row .rr-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex: none; }
+
+  .pill.status-notstarted, .pill.status-open, .pill.status-scheduled, .pill.status-normal, .pill.status-low { background: rgba(91,66,57,0.08); color: var(--brown); }
+  .pill.status-inprogress { background: rgba(255,145,77,0.18); color: var(--brown); }
+  .pill.status-waiting, .pill.status-pending, .pill.status-needsmoreinfo { background: var(--yellow); color: var(--black); }
+  .pill.status-blocked, .pill.status-urgent, .pill.status-high, .pill.status-rejected { background: #f5d3cc; color: #8a2f1c; }
+  .pill.status-completed, .pill.status-resolved, .pill.status-approved { background: rgba(45,90,61,0.14); color: #2d5a3d; }
+  .pill.status-cancelled { background: rgba(91,66,57,0.08); color: var(--brown); text-decoration: line-through; }
+
+  .record-overlay { position: fixed; inset: 0; background: rgba(23,19,15,0.4); display: none; align-items: flex-end; z-index: 500; touch-action: manipulation; }
+  .record-overlay.show { display: flex; }
+  @media (min-width: 1080px) { .record-overlay { align-items: center; justify-content: center; } }
+  .record-card { background: var(--white); width: 100%; border-radius: 20px 20px 0 0; padding: 22px 20px 26px; max-height: 88%; overflow-y: auto; }
+  @media (min-width: 1080px) { .record-card { border-radius: 18px; max-width: 480px; } }
+  .record-card .close { display: block; margin: 0 0 10px auto; background: none; border: none; font-size: 0.85rem; font-weight: 700; color: var(--brown); cursor: pointer; padding: 10px 14px; }
+  .record-card h3 { font-family: 'Playfair Display', serif; font-size: 1.2rem; margin: 0 0 12px; }
+  .record-card .kv { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+  .record-card .kv .k { color: var(--brown); font-weight: 600; flex: none; }
+  .record-card .kv .v { text-align: right; }
+  .record-card .manager-only { border-top: 1.5px dashed var(--border); margin-top: 14px; padding-top: 14px; }
+  .record-card .manager-only .mo-label { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: var(--brown); margin-bottom: 8px; }
+
+  .planner-group-title { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brown); margin: 18px 0 8px; }
+  .planner-group-title:first-of-type { margin-top: 0; }
 
   .tabbar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); display: flex; padding: 8px 4px 14px; overflow-x: auto; }
   .tab { flex: 1; min-width: 64px; text-align: center; font-size: 0.58rem; font-weight: 600; color: var(--brown); padding: 6px 2px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.02em; border-radius: 10px; }
@@ -237,31 +274,147 @@
     <h3 class="section-title">Team</h3>
     <div class="stat-row">
       <div class="stat">
-        <div class="stat-head"><div class="lbl">Total Tasks</div></div>
+        <div class="stat-head"><div class="lbl">Open Tasks</div></div>
         <div class="num" id="statTasks">—</div>
-        <div class="hint">Due today · Overdue · Assigned to you land in Phase 3.</div>
+        <div class="hint" id="teamHint">— due today · — overdue · — assigned to you</div>
       </div>
     </div>
 
     <h3 class="section-title">Calendar</h3>
     <div class="stat-row">
       <div class="stat">
-        <div class="stat-head"><div class="lbl">Total Events</div></div>
+        <div class="stat-head"><div class="lbl">Upcoming Events</div></div>
         <div class="num" id="statCalendar">—</div>
-        <div class="hint">Today's and upcoming views land in Phase 3.</div>
+        <div class="hint" id="calendarHint">— today</div>
       </div>
     </div>
   </div>
 
+  <!-- TASKS -->
+  <div class="screen" id="tasks">
+    <h2 class="title">Tasks</h2>
+    <button class="btn primary" id="newTaskBtn">+ New Task</button>
+    <div class="card" id="taskForm" style="display:none;">
+      <label>Title</label><input id="taskTitle" placeholder="Task title">
+      <label>Description</label><textarea id="taskDescription" placeholder="Details (optional)"></textarea>
+      <div class="form-grid">
+        <div><label>Category</label><select id="taskCategory"><option>General</option><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Admin</option><option>Client</option><option>Supplier</option></select></div>
+        <div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
+        <div><label>Assigned To</label><input id="taskAssignedTo" placeholder="First name"></div>
+        <div><label>Due Date</label><input type="date" id="taskDueDate"></div>
+      </div>
+      <label>Related Record</label><input id="taskRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
+      <label>Notes</label><textarea id="taskNotes" placeholder="Optional"></textarea>
+      <button class="btn primary" id="saveTaskBtn">Save Task</button>
+    </div>
+    <div class="filter-row" id="taskFilter">
+      <button data-status="all" class="active">All</button>
+      <button data-status="Not Started">Not Started</button>
+      <button data-status="In Progress">In Progress</button>
+      <button data-status="Waiting">Waiting</button>
+      <button data-status="Blocked">Blocked</button>
+      <button data-status="Completed">Completed</button>
+    </div>
+    <div class="card"><div id="taskList"></div></div>
+  </div>
+
+  <!-- CALENDAR -->
+  <div class="screen" id="calendar">
+    <h2 class="title">Calendar</h2>
+    <div class="hint" style="margin:-8px 0 14px;">List view for now — month/week/day grid views can follow once this is in daily use.</div>
+    <button class="btn primary" id="newEventBtn">+ New Event</button>
+    <div class="card" id="eventForm" style="display:none;">
+      <label>Title</label><input id="eventTitle" placeholder="Event title">
+      <div class="form-grid">
+        <div><label>Date</label><input type="date" id="eventDate"></div>
+        <div><label>Event Type</label><select id="eventType"><option>Meeting</option><option>Production</option><option>Delivery</option><option>Supplier Arrival</option><option>Client Deadline</option><option>Maintenance</option><option>Other</option></select></div>
+        <div><label>Start Time</label><input type="time" id="eventStart"></div>
+        <div><label>End Time</label><input type="time" id="eventEnd"></div>
+        <div><label>Owner</label><input id="eventOwner" placeholder="First name"></div>
+        <div><label>Location</label><input id="eventLocation" placeholder="Optional"></div>
+      </div>
+      <label>Related Record</label><input id="eventRelatedRecord" placeholder="Optional">
+      <label>Notes</label><textarea id="eventNotes" placeholder="Optional"></textarea>
+      <button class="btn primary" id="saveEventBtn">Save Event</button>
+    </div>
+    <div class="card"><div id="calendarList"></div></div>
+  </div>
+
+  <!-- PLANNER -->
+  <div class="screen" id="planner">
+    <h2 class="title">Planner</h2>
+    <div class="hint" style="margin:-8px 0 14px;">Combines Tasks and Calendar for now — Production, Deliveries and Purchasing feed in during Phase 4.</div>
+    <div class="filter-row" id="plannerFilter">
+      <button data-kind="all" class="active">All</button>
+      <button data-kind="task">Tasks</button>
+      <button data-kind="event">Events</button>
+    </div>
+    <div id="plannerBody"></div>
+  </div>
+
+  <!-- DIRECTOR ATTENTION -->
+  <div class="screen" id="directorAttention">
+    <h2 class="title">Director Attention</h2>
+    <button class="btn primary" id="newAttentionBtn">Flag for Director</button>
+    <div class="card" id="attentionForm" style="display:none;">
+      <label>Related Record</label><input id="attnRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
+      <label>Category</label>
+      <select id="attnCategory"><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Client</option><option>Supplier</option><option>Finance</option><option>Other</option></select>
+      <label>What happened, and what's already been done?</label><textarea id="attnIssue" placeholder="Describe the situation and any steps already taken"></textarea>
+      <label>What's needed from the Director?</label><textarea id="attnNeeded"></textarea>
+      <label>What information is missing?</label><textarea id="attnMissing" placeholder="Optional"></textarea>
+      <div class="form-grid">
+        <div><label>Priority</label><select id="attnPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
+        <div><label>Deadline</label><input type="date" id="attnDeadline"></div>
+      </div>
+      <button class="btn primary" id="saveAttentionBtn">Send to Director</button>
+    </div>
+    <div class="filter-row" id="attentionFilter">
+      <button data-status="all" class="active">All</button>
+      <button data-status="Open">Open</button>
+      <button data-status="Resolved">Resolved</button>
+    </div>
+    <div class="card"><div id="attentionList"></div></div>
+  </div>
+
+  <!-- COMMUNICATIONS -->
+  <div class="screen" id="communications">
+    <h2 class="title">Communications</h2>
+    <button class="btn primary" id="newCommBtn">+ New</button>
+    <div class="card" id="commForm" style="display:none;">
+      <label>Type</label>
+      <select id="commType">
+        <option>Team Needs To Know</option>
+        <option>Team Needs To Do</option>
+        <option>Client Needs To Be Contacted</option>
+        <option>Supplier Needs Follow-Up</option>
+        <option>Waiting For Director</option>
+        <option>Waiting For Client</option>
+        <option>Waiting For Supplier</option>
+      </select>
+      <label>Related Record</label><input id="commRelatedRecord" placeholder="Optional">
+      <div class="form-grid">
+        <div><label>Sender</label><input id="commSender" placeholder="First name" disabled></div>
+        <div><label>Recipient</label><input id="commRecipient" placeholder="Optional"></div>
+      </div>
+      <label>Message</label><textarea id="commMessage"></textarea>
+      <div class="form-grid">
+        <div><label>Action Required</label><input id="commActionRequired" placeholder="Optional"></div>
+        <div><label>Follow-up Date</label><input type="date" id="commFollowUp"></div>
+      </div>
+      <button class="btn primary" id="saveCommBtn">Save</button>
+    </div>
+    <div id="commBody"></div>
+  </div>
+
   <!-- PLACEHOLDER SCREENS: built out in the phase noted on each card -->
-  <div class="screen" id="planner"><h2 class="title">Planner</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Company Planner</div>Today / Tomorrow / This Week / Next Week / Later views land here.</div></div>
-  <div class="screen" id="calendar"><h2 class="title">Calendar</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Company Calendar</div>Month / week / day / list views, linked to underlying records.</div></div>
-  <div class="screen" id="tasks"><h2 class="title">Tasks</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Task System</div>Create, assign and track tasks through to completion.</div></div>
-  <div class="screen" id="directorAttention"><h2 class="title">Director Attention</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Director Attention Queue</div>Flag items for Dr. Efua and track her responses.</div></div>
-  <div class="screen" id="communications"><h2 class="title">Communications</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Communication Center</div>Team / client / supplier / Director follow-up tracking.</div></div>
   <div class="screen" id="production"><h2 class="title">Production</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Production Workflow</div>Readiness checklist, status tracking, and the read-only Inventory reference lookup.</div></div>
   <div class="screen" id="deliveries"><h2 class="title">Deliveries</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Incoming &amp; Outgoing Movement</div>Delivery tracking for both directions.</div></div>
   <div class="screen" id="purchasing"><h2 class="title">Purchasing</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Purchasing Workflow</div>Need → Approval → Ordered → Paid → Received lifecycle.</div></div>
+
+  <div class="record-overlay" id="recordOverlay">
+    <div class="record-card" id="recordCard"></div>
+  </div>
 
   <div class="tabbar" id="tabbar">
     <div class="tab active" data-screen="dashboard"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Home</div>
@@ -294,7 +447,7 @@ function loadCache() {
     const raw = JSON.parse(localStorage.getItem(CACHE_KEY));
     if (raw) return raw;
   } catch (e) {}
-  const empty = { counts: {}, lastSynced: null };
+  const empty = { counts: {}, tasks: [], calendarEvents: [], directorAttention: [], communications: [], lastSynced: null };
   localStorage.setItem(CACHE_KEY, JSON.stringify(empty));
   return empty;
 }
@@ -332,9 +485,9 @@ async function callBackend(action, payload) {
   }
 }
 
-async function fetchBootstrap() {
+async function fetchJSON(action) {
   if (!isConfigured()) throw new Error("SCRIPT_URL not set yet");
-  const res = await fetch(SCRIPT_URL + "?action=getBootstrap");
+  const res = await fetch(SCRIPT_URL + "?action=" + encodeURIComponent(action));
   return res.json();
 }
 
@@ -358,14 +511,22 @@ async function trySync() {
       }
       if (i < queue.length - 1) await new Promise(r => setTimeout(r, 250));
     }
-    const data = await fetchBootstrap();
-    if (data.status === "ok") {
-      const cache = loadCache();
-      cache.counts = data.counts;
-      cache.lastSynced = new Date().toISOString();
-      saveCache(cache);
-      renderDashboard();
-    }
+    const [bootstrap, tasksRes, calendarRes, attnRes, commsRes] = await Promise.all([
+      fetchJSON("getBootstrap"),
+      fetchJSON("getTasks"),
+      fetchJSON("getCalendar"),
+      fetchJSON("getDirectorAttention"),
+      fetchJSON("getCommunications")
+    ]);
+    const cache = loadCache();
+    if (bootstrap.status === "ok") cache.counts = bootstrap.counts;
+    if (tasksRes.status === "ok") cache.tasks = tasksRes.tasks;
+    if (calendarRes.status === "ok") cache.calendarEvents = calendarRes.events;
+    if (attnRes.status === "ok") cache.directorAttention = attnRes.items;
+    if (commsRes.status === "ok") cache.communications = commsRes.items;
+    cache.lastSynced = new Date().toISOString();
+    saveCache(cache);
+    renderAll();
   } catch (err) {
     lastSyncError = err.message;
   }
@@ -408,6 +569,21 @@ window.addEventListener("online", trySync);
 window.addEventListener("offline", renderSyncStatus);
 setInterval(trySync, 60000);
 
+// ---------- shared helpers ----------
+function escapeHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(iso.length <= 10 ? iso + "T00:00:00" : iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+function statusClass(s) {
+  return "status-" + String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+}
+function todayStr() { return new Date().toISOString().slice(0, 10); }
+
 // ---------- Command Center rendering ----------
 function renderDashboard() {
   const cache = loadCache();
@@ -416,16 +592,441 @@ function renderDashboard() {
   set("statProduction", counts.Production);
   set("statDeliveries", counts.Deliveries);
   set("statPurchases", counts.Purchases);
-  set("statDirectorAttention", counts.DirectorAttention);
-  set("statTasks", counts.Tasks);
-  set("statCalendar", counts.Calendar);
 
-  const hint = document.getElementById("directorAttentionHint");
-  if (hint) {
-    hint.textContent = currentTier === "Manager"
-      ? "Priority and overdue detail land in Phase 3 — Manager tier will see full detail here."
-      : "Priority and overdue detail land in Phase 3. Full detail is visible to the Manager tier.";
+  const attention = cache.directorAttention || [];
+  const outstanding = attention.filter(a => a.status === "Open");
+  set("statDirectorAttention", outstanding.length);
+  const attnHint = document.getElementById("directorAttentionHint");
+  if (attnHint) {
+    if (currentTier === "Manager") {
+      const highPriority = outstanding.filter(a => a.priority === "High" || a.priority === "Urgent").length;
+      const today = todayStr();
+      const overdue = outstanding.filter(a => a.deadline && a.deadline < today).length;
+      attnHint.textContent = highPriority + " high priority · " + overdue + " overdue";
+    } else {
+      attnHint.textContent = "Priority and overdue detail is visible to the Manager tier.";
+    }
   }
+
+  const tasks = cache.tasks || [];
+  const openTasks = tasks.filter(t => t.status !== "Completed" && t.status !== "Cancelled");
+  set("statTasks", openTasks.length);
+  const today = todayStr();
+  const dueToday = openTasks.filter(t => t.dueDate === today).length;
+  const overdueTasks = openTasks.filter(t => t.dueDate && t.dueDate < today).length;
+  const mine = openTasks.filter(t => (t.assignedTo || "").toLowerCase() === (currentWorker || "").toLowerCase()).length;
+  const teamHint = document.getElementById("teamHint");
+  if (teamHint) teamHint.textContent = dueToday + " due today · " + overdueTasks + " overdue · " + mine + " assigned to you";
+
+  const events = cache.calendarEvents || [];
+  const upcoming = events.filter(e => e.status !== "Cancelled" && e.date >= today);
+  set("statCalendar", upcoming.length);
+  const todaysEvents = upcoming.filter(e => e.date === today).length;
+  const calHint = document.getElementById("calendarHint");
+  if (calHint) calHint.textContent = todaysEvents + " today";
+}
+
+function renderAll() {
+  renderDashboard();
+  renderTasks();
+  renderCalendar();
+  renderPlanner();
+  renderDirectorAttention();
+  renderCommunications();
+}
+
+// ---------- Tasks ----------
+let taskFilterStatus = "all";
+document.getElementById("newTaskBtn").addEventListener("click", () => {
+  const form = document.getElementById("taskForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveTaskBtn").addEventListener("click", () => {
+  const title = document.getElementById("taskTitle").value.trim();
+  if (!title) { document.getElementById("taskTitle").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    title: title,
+    description: document.getElementById("taskDescription").value.trim(),
+    category: document.getElementById("taskCategory").value,
+    priority: document.getElementById("taskPriority").value,
+    assignedTo: document.getElementById("taskAssignedTo").value.trim(),
+    createdBy: currentWorker,
+    createdDate: now,
+    dueDate: document.getElementById("taskDueDate").value,
+    completedDate: "",
+    directorAttentionFlag: false,
+    missingInformation: "",
+    notes: document.getElementById("taskNotes").value.trim(),
+    relatedRecord: document.getElementById("taskRelatedRecord").value.trim(),
+    status: "Not Started",
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.tasks = cache.tasks || [];
+  cache.tasks.unshift(Object.assign({ taskId: "TASK-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderTasks();
+  renderDashboard();
+  ["taskTitle", "taskDescription", "taskAssignedTo", "taskDueDate", "taskRelatedRecord", "taskNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("taskForm").style.display = "none";
+  enqueue("createTask", fields);
+});
+document.getElementById("taskFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#taskFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  taskFilterStatus = btn.dataset.status;
+  renderTasks();
+});
+function renderTasks() {
+  const cache = loadCache();
+  const tasks = (cache.tasks || []).filter(t => taskFilterStatus === "all" || t.status === taskFilterStatus);
+  const list = document.getElementById("taskList");
+  if (!tasks.length) { list.innerHTML = '<div class="empty-state">No tasks yet.</div>'; return; }
+  list.innerHTML = tasks.map(t => `
+    <div class="record-row" data-type="task" data-id="${escapeHtml(t.taskId)}">
+      <div>
+        <div class="rr-title">${escapeHtml(t.title)}</div>
+        <div class="rr-meta">${escapeHtml(t.category || "General")} · ${escapeHtml(t.assignedTo || "Unassigned")}${t.dueDate ? " · Due " + fmtDate(t.dueDate) : ""}</div>
+      </div>
+      <div class="rr-right">
+        <span class="pill ${statusClass(t.status)}">${escapeHtml(t.status || "Not Started")}</span>
+        <span class="pill ${statusClass(t.priority)}">${escapeHtml(t.priority || "Normal")}</span>
+      </div>
+    </div>`).join("");
+}
+document.getElementById("taskList").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal("task", row.dataset.id);
+});
+
+// ---------- Calendar ----------
+document.getElementById("newEventBtn").addEventListener("click", () => {
+  const form = document.getElementById("eventForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveEventBtn").addEventListener("click", () => {
+  const title = document.getElementById("eventTitle").value.trim();
+  const date = document.getElementById("eventDate").value;
+  if (!title) { document.getElementById("eventTitle").focus(); return; }
+  if (!date) { document.getElementById("eventDate").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    title: title,
+    date: date,
+    startTime: document.getElementById("eventStart").value,
+    endTime: document.getElementById("eventEnd").value,
+    eventType: document.getElementById("eventType").value,
+    owner: document.getElementById("eventOwner").value.trim(),
+    relatedRecord: document.getElementById("eventRelatedRecord").value.trim(),
+    location: document.getElementById("eventLocation").value.trim(),
+    notes: document.getElementById("eventNotes").value.trim(),
+    status: "Scheduled",
+    createdBy: currentWorker,
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.calendarEvents = cache.calendarEvents || [];
+  cache.calendarEvents.unshift(Object.assign({ eventId: "EVT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderCalendar();
+  renderPlanner();
+  renderDashboard();
+  ["eventTitle", "eventDate", "eventStart", "eventEnd", "eventOwner", "eventRelatedRecord", "eventLocation", "eventNotes"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("eventForm").style.display = "none";
+  enqueue("createCalendarEvent", fields);
+});
+function renderCalendar() {
+  const cache = loadCache();
+  const events = (cache.calendarEvents || []).slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  const list = document.getElementById("calendarList");
+  if (!events.length) { list.innerHTML = '<div class="empty-state">No events yet.</div>'; return; }
+  list.innerHTML = events.map(ev => `
+    <div class="record-row" data-type="event" data-id="${escapeHtml(ev.eventId)}">
+      <div>
+        <div class="rr-title">${escapeHtml(ev.title)}</div>
+        <div class="rr-meta">${fmtDate(ev.date)}${ev.startTime ? " · " + escapeHtml(ev.startTime) : ""} · ${escapeHtml(ev.eventType || "Other")}</div>
+      </div>
+      <div class="rr-right"><span class="pill ${statusClass(ev.status)}">${escapeHtml(ev.status || "Scheduled")}</span></div>
+    </div>`).join("");
+}
+document.getElementById("calendarList").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal("event", row.dataset.id);
+});
+
+// ---------- Planner ----------
+let plannerKind = "all";
+document.getElementById("plannerFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#plannerFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  plannerKind = btn.dataset.kind;
+  renderPlanner();
+});
+function dayBucket(dateStr) {
+  if (!dateStr) return "No Date";
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d)) return "No Date";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((d - today) / 86400000);
+  if (diffDays < 0) return "Overdue";
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Tomorrow";
+  if (diffDays <= 7) return "This Week";
+  if (diffDays <= 14) return "Next Week";
+  return "Later";
+}
+function renderPlanner() {
+  const cache = loadCache();
+  const items = [];
+  (cache.tasks || []).forEach(t => {
+    if (plannerKind === "event") return;
+    if (t.status === "Completed" || t.status === "Cancelled") return;
+    items.push({ kind: "task", id: t.taskId, title: t.title, date: t.dueDate, meta: (t.assignedTo || "Unassigned") + " · " + (t.category || "General"), status: t.status });
+  });
+  (cache.calendarEvents || []).forEach(ev => {
+    if (plannerKind === "task") return;
+    if (ev.status === "Cancelled") return;
+    items.push({ kind: "event", id: ev.eventId, title: ev.title, date: ev.date, meta: (ev.eventType || "Other") + (ev.owner ? " · " + ev.owner : ""), status: ev.status });
+  });
+  const order = ["Overdue", "Today", "Tomorrow", "This Week", "Next Week", "Later", "No Date"];
+  const groups = {};
+  items.forEach(it => { const b = dayBucket(it.date); (groups[b] = groups[b] || []).push(it); });
+  const body = document.getElementById("plannerBody");
+  const nonEmpty = order.filter(b => groups[b] && groups[b].length);
+  if (!nonEmpty.length) { body.innerHTML = '<div class="card"><div class="empty-state">Nothing on the planner yet.</div></div>'; return; }
+  body.innerHTML = nonEmpty.map(bucket => `
+    <div class="planner-group-title">${bucket}</div>
+    <div class="card">
+      ${groups[bucket].map(it => `
+        <div class="record-row" data-type="${it.kind}" data-id="${escapeHtml(it.id)}">
+          <div>
+            <div class="rr-title">${escapeHtml(it.title)}</div>
+            <div class="rr-meta">${it.kind === "task" ? "Task" : "Event"} · ${escapeHtml(it.meta)}</div>
+          </div>
+          <div class="rr-right"><span class="pill ${statusClass(it.status)}">${escapeHtml(it.status || "")}</span></div>
+        </div>`).join("")}
+    </div>`).join("");
+}
+document.getElementById("plannerBody").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal(row.dataset.type, row.dataset.id);
+});
+
+// ---------- Director Attention ----------
+document.getElementById("newAttentionBtn").addEventListener("click", () => {
+  const form = document.getElementById("attentionForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveAttentionBtn").addEventListener("click", () => {
+  const issue = document.getElementById("attnIssue").value.trim();
+  if (!issue) { document.getElementById("attnIssue").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    relatedRecord: document.getElementById("attnRelatedRecord").value.trim(),
+    category: document.getElementById("attnCategory").value,
+    issue: issue,
+    whatIsNeededFromDirector: document.getElementById("attnNeeded").value.trim(),
+    missingInformation: document.getElementById("attnMissing").value.trim(),
+    flaggedBy: currentWorker,
+    dateFlagged: now,
+    priority: document.getElementById("attnPriority").value,
+    deadline: document.getElementById("attnDeadline").value,
+    status: "Open",
+    directorResponse: "",
+    dateResolved: ""
+  };
+  const cache = loadCache();
+  cache.directorAttention = cache.directorAttention || [];
+  cache.directorAttention.unshift(Object.assign({ attentionId: "ATT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDirectorAttention();
+  renderDashboard();
+  ["attnRelatedRecord", "attnIssue", "attnNeeded", "attnMissing", "attnDeadline"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("attentionForm").style.display = "none";
+  enqueue("flagDirectorAttention", fields);
+});
+let attentionFilterStatus = "all";
+document.getElementById("attentionFilter").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  document.querySelectorAll("#attentionFilter button").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  attentionFilterStatus = btn.dataset.status;
+  renderDirectorAttention();
+});
+function renderDirectorAttention() {
+  const cache = loadCache();
+  const items = (cache.directorAttention || []).filter(a => attentionFilterStatus === "all" || a.status === attentionFilterStatus);
+  const list = document.getElementById("attentionList");
+  if (!items.length) { list.innerHTML = '<div class="empty-state">Nothing flagged.</div>'; return; }
+  list.innerHTML = items.map(a => `
+    <div class="record-row" data-type="attention" data-id="${escapeHtml(a.attentionId)}">
+      <div>
+        <div class="rr-title">${escapeHtml((a.issue || "").slice(0, 80))}</div>
+        <div class="rr-meta">${escapeHtml(a.category || "Other")} · Flagged by ${escapeHtml(a.flaggedBy || "")} · ${fmtDate(a.dateFlagged)}</div>
+      </div>
+      <div class="rr-right">
+        <span class="pill ${statusClass(a.status)}">${escapeHtml(a.status || "Open")}</span>
+        <span class="pill ${statusClass(a.priority)}">${escapeHtml(a.priority || "Normal")}</span>
+      </div>
+    </div>`).join("");
+}
+document.getElementById("attentionList").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal("attention", row.dataset.id);
+});
+
+// ---------- Communications ----------
+const COMM_TYPES = ["Team Needs To Know", "Team Needs To Do", "Client Needs To Be Contacted", "Supplier Needs Follow-Up", "Waiting For Director", "Waiting For Client", "Waiting For Supplier"];
+document.getElementById("newCommBtn").addEventListener("click", () => {
+  const form = document.getElementById("commForm");
+  document.getElementById("commSender").value = currentWorker;
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveCommBtn").addEventListener("click", () => {
+  const message = document.getElementById("commMessage").value.trim();
+  if (!message) { document.getElementById("commMessage").focus(); return; }
+  const now = new Date().toISOString();
+  const fields = {
+    date: now,
+    type: document.getElementById("commType").value,
+    relatedRecord: document.getElementById("commRelatedRecord").value.trim(),
+    sender: currentWorker,
+    recipient: document.getElementById("commRecipient").value.trim(),
+    message: message,
+    actionRequired: document.getElementById("commActionRequired").value.trim(),
+    status: "Open",
+    followUpDate: document.getElementById("commFollowUp").value,
+    createdBy: currentWorker,
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.communications = cache.communications || [];
+  cache.communications.unshift(Object.assign({ communicationId: "COM-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderCommunications();
+  ["commRelatedRecord", "commRecipient", "commMessage", "commActionRequired", "commFollowUp"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("commForm").style.display = "none";
+  enqueue("createCommunication", fields);
+});
+function renderCommunications() {
+  const cache = loadCache();
+  const items = cache.communications || [];
+  const body = document.getElementById("commBody");
+  const groups = {};
+  items.forEach(c => { if (c.status !== "Resolved") (groups[c.type] = groups[c.type] || []).push(c); });
+  const nonEmpty = COMM_TYPES.filter(t => groups[t] && groups[t].length);
+  if (!nonEmpty.length) { body.innerHTML = '<div class="card"><div class="empty-state">Nothing outstanding.</div></div>'; return; }
+  body.innerHTML = nonEmpty.map(type => `
+    <h3 class="section-title">${escapeHtml(type)}</h3>
+    <div class="card">
+      ${groups[type].map(c => `
+        <div class="record-row" data-type="communication" data-id="${escapeHtml(c.communicationId)}">
+          <div>
+            <div class="rr-title">${escapeHtml((c.message || "").slice(0, 80))}</div>
+            <div class="rr-meta">${escapeHtml(c.sender || "")}${c.recipient ? " → " + escapeHtml(c.recipient) : ""} · ${fmtDate(c.date)}</div>
+          </div>
+          <div class="rr-right"><span class="pill ${statusClass(c.status)}">${escapeHtml(c.status || "Open")}</span></div>
+        </div>`).join("")}
+    </div>`).join("");
+}
+document.getElementById("commBody").addEventListener("click", (e) => {
+  const row = e.target.closest(".record-row");
+  if (row) openRecordModal("communication", row.dataset.id);
+});
+
+// ---------- shared record modal (Task / Event / Director Attention / Communication) ----------
+function findRecord(type, id) {
+  const cache = loadCache();
+  if (type === "task") return (cache.tasks || []).find(t => t.taskId === id);
+  if (type === "event") return (cache.calendarEvents || []).find(e => e.eventId === id);
+  if (type === "attention") return (cache.directorAttention || []).find(a => a.attentionId === id);
+  if (type === "communication") return (cache.communications || []).find(c => c.communicationId === id);
+}
+function kv(k, v) {
+  if (v === undefined || v === null || v === "") return "";
+  return `<div class="kv"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`;
+}
+function openRecordModal(type, id) {
+  const rec = findRecord(type, id);
+  if (!rec) return;
+  document.getElementById("recordCard").innerHTML = buildRecordHtml(type, rec);
+  document.getElementById("recordOverlay").classList.add("show");
+  wireRecordModal(type, rec);
+}
+function closeRecordModal() { document.getElementById("recordOverlay").classList.remove("show"); }
+document.getElementById("recordOverlay").addEventListener("click", (e) => { if (e.target.id === "recordOverlay") closeRecordModal(); });
+
+function buildRecordHtml(type, rec) {
+  let html = '<button class="close" id="recordCloseBtn">Close ✕</button>';
+  if (type === "task") {
+    html += `<h3>${escapeHtml(rec.title)}</h3>`;
+    html += kv("Category", rec.category) + kv("Priority", rec.priority) + kv("Assigned To", rec.assignedTo || "Unassigned") + kv("Due", fmtDate(rec.dueDate)) + kv("Related Record", rec.relatedRecord) + kv("Description", rec.description) + kv("Notes", rec.notes);
+    html += `<label>Status</label><select id="editStatus">${["Not Started", "In Progress", "Waiting", "Blocked", "Completed", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<button class="btn primary" id="recordSaveBtn">Update Task</button>`;
+  } else if (type === "event") {
+    html += `<h3>${escapeHtml(rec.title)}</h3>`;
+    html += kv("Date", fmtDate(rec.date)) + kv("Time", (rec.startTime || "") + (rec.endTime ? " – " + rec.endTime : "")) + kv("Type", rec.eventType) + kv("Owner", rec.owner) + kv("Location", rec.location) + kv("Related Record", rec.relatedRecord) + kv("Notes", rec.notes);
+    html += `<label>Status</label><select id="editStatus">${["Scheduled", "Completed", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<button class="btn primary" id="recordSaveBtn">Update Event</button>`;
+  } else if (type === "attention") {
+    html += `<h3>${escapeHtml(rec.category || "Director Attention")}</h3>`;
+    html += kv("Issue", rec.issue) + kv("Needed From Director", rec.whatIsNeededFromDirector) + kv("Missing Info", rec.missingInformation) + kv("Priority", rec.priority) + kv("Deadline", fmtDate(rec.deadline)) + kv("Flagged By", rec.flaggedBy) + kv("Date Flagged", fmtDate(rec.dateFlagged)) + kv("Related Record", rec.relatedRecord) + kv("Status", rec.status) + kv("Director Response", rec.directorResponse);
+    if (currentTier === "Manager") {
+      html += `<div class="manager-only"><div class="mo-label">Manager Response</div>`;
+      html += `<label>Response</label><textarea id="editResponse" placeholder="Your decision / instruction">${escapeHtml(rec.directorResponse || "")}</textarea>`;
+      html += `<label>Status</label><select id="editStatus">${["Open", "Approved", "Rejected", "Needs More Info", "Resolved"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+      html += `<button class="btn primary" id="recordSaveBtn">Respond</button></div>`;
+    }
+  } else if (type === "communication") {
+    html += `<h3>${escapeHtml(rec.type)}</h3>`;
+    html += kv("Message", rec.message) + kv("Sender", rec.sender) + kv("Recipient", rec.recipient) + kv("Action Required", rec.actionRequired) + kv("Follow-up", fmtDate(rec.followUpDate)) + kv("Related Record", rec.relatedRecord);
+    html += `<label>Status</label><select id="editStatus">${["Open", "Resolved"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<button class="btn primary" id="recordSaveBtn">Update</button>`;
+  }
+  return html;
+}
+function applyLocalPatch(arrayKey, idKey, idVal, patch) {
+  const cache = loadCache();
+  const arr = cache[arrayKey] || [];
+  const idx = arr.findIndex(r => r[idKey] === idVal);
+  if (idx >= 0) Object.assign(arr[idx], patch);
+  saveCache(cache);
+}
+function wireRecordModal(type, rec) {
+  document.getElementById("recordCloseBtn").addEventListener("click", closeRecordModal);
+  const saveBtn = document.getElementById("recordSaveBtn");
+  if (!saveBtn) return;
+  saveBtn.addEventListener("click", () => {
+    const newStatus = document.getElementById("editStatus").value;
+    if (type === "task") {
+      const patch = { status: newStatus };
+      applyLocalPatch("tasks", "taskId", rec.taskId, patch);
+      enqueue("updateTask", { taskId: rec.taskId, updatedBy: currentWorker, tier: currentTier, patch: patch });
+      renderTasks(); renderPlanner(); renderDashboard();
+    } else if (type === "event") {
+      const patch = { status: newStatus };
+      applyLocalPatch("calendarEvents", "eventId", rec.eventId, patch);
+      enqueue("updateCalendarEvent", { eventId: rec.eventId, updatedBy: currentWorker, patch: patch });
+      renderCalendar(); renderPlanner(); renderDashboard();
+    } else if (type === "attention") {
+      const patch = { status: newStatus, directorResponse: document.getElementById("editResponse").value.trim() };
+      applyLocalPatch("directorAttention", "attentionId", rec.attentionId, patch);
+      enqueue("respondDirectorAttention", { attentionId: rec.attentionId, respondedBy: currentWorker, newStatus: newStatus, directorResponse: patch.directorResponse });
+      renderDirectorAttention(); renderDashboard();
+    } else if (type === "communication") {
+      const patch = { status: newStatus };
+      applyLocalPatch("communications", "communicationId", rec.communicationId, patch);
+      enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: patch });
+      renderCommunications();
+    }
+    closeRecordModal();
+  });
 }
 
 // ---------- navigation ----------
@@ -495,7 +1096,7 @@ function startWorking() {
   showScreen("dashboard");
   enqueue("logUser", { name: currentWorker, tier: currentTier });
   loadCache();
-  renderDashboard();
+  renderAll();
   renderSyncStatus();
   trySync();
 }
