@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LCL Operations Centre</title>
+<link rel="manifest" href="manifest.json">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Urbanist:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Design tokens copied from LCL Inventory on purpose — Section 27 of the
+     spec: OC must visually belong to the same company's software. */
+  :root {
+    --cream: #FBF8EF;
+    --black: #17130F;
+    --orange: #FF914D;
+    --yellow: #FFDE59;
+    --brown: #5B4239;
+    --white: #FFFFFF;
+    --border: rgba(91,66,57,0.16);
+    --shadow: 0 6px 20px rgba(23,19,15,0.07);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--cream); font-family: 'Urbanist', sans-serif; color: var(--black); }
+
+  .app { width: 100%; height: 100dvh; background: var(--cream); overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .main { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+
+  @media (min-width: 768px) {
+    .stat-row { flex-wrap: nowrap; }
+  }
+
+  @media (min-width: 1080px) {
+    .app { flex-direction: row; }
+    .app.unlocked .sidebar { display: flex; }
+    .tabbar { display: none; }
+    .screen { padding-bottom: 24px; }
+  }
+
+  /* Sidebar visibility is driven by JS (.app.unlocked), not just the width
+     media query — keeps nav (and its clicks) unreachable before the PIN is
+     entered, even on a wide screen. */
+  .sidebar { display: none; flex-direction: column; width: 190px; background: var(--white); border-right: 1px solid var(--border); padding: 22px 14px; gap: 4px; overflow-y: auto; }
+  .sidebar .brand-row { display: flex; align-items: center; gap: 8px; margin-bottom: 22px; padding: 0 6px; }
+  .sidebar .brand-row .mark { height: 26px; width: 26px; border-radius: 7px; background: var(--black); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 800; font-size: 0.8rem; flex: none; }
+  .sidebar .brand-row .word { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 0.95rem; line-height: 1.15; }
+  .sidebar .brand-row .word span { display: block; font-family: 'Urbanist', sans-serif; font-weight: 700; font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--brown); }
+  .sidebar .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 12px; border-radius: 10px; font-size: 0.85rem; font-weight: 600; color: var(--brown); cursor: pointer; }
+  .sidebar .nav-item.active { background: rgba(255,145,77,0.18); color: var(--black); }
+  .sidebar .nav-divider { height: 1px; background: var(--border); margin: 10px 6px; }
+  .sidebar .nav-item.admin-item { color: var(--brown); }
+  .sidebar .nav-item.admin-item.active { background: rgba(23,19,15,0.08); }
+
+  .topbar { background: var(--cream); padding: 18px 20px 14px; border-bottom: 1.5px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .topbar .mark { height: 28px; width: 28px; border-radius: 8px; background: var(--black); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 800; font-size: 0.82rem; flex: none; }
+  .topbar .word { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1.05rem; }
+  .topbar .word span { color: var(--orange); font-style: italic; }
+  .screen-label { margin-left: auto; font-size: 0.66rem; font-weight: 700; color: var(--brown); text-transform: uppercase; letter-spacing: 0.04em; }
+  .mgr-badge { margin-left: auto; font-size: 0.6rem; font-weight: 800; background: var(--black); color: var(--cream); padding: 3px 9px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
+  .worker-badge { font-size: 0.62rem; font-weight: 700; background: rgba(255,145,77,0.16); color: var(--brown); padding: 4px 10px; border-radius: 10px; white-space: nowrap; }
+
+  .screen { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 18px 20px calc(96px + env(safe-area-inset-bottom)); display: none; }
+  .screen.active { display: block; }
+  @media (min-width: 1080px) { .screen { padding-bottom: 24px; } }
+
+  h2.title { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1.45rem; margin: 2px 0 16px; }
+  h3.section-title { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1rem; margin: 22px 0 10px; display: flex; align-items: center; gap: 8px; }
+  h3.section-title:first-of-type { margin-top: 4px; }
+
+  .card { background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 14px; box-shadow: var(--shadow); }
+
+  .stat-row { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+  .stat { flex: 1; min-width: 150px; background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); }
+  .stat .stat-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .stat .num { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1.6rem; }
+  .stat .lbl { font-size: 0.66rem; color: var(--brown); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
+  .stat .hint { font-size: 0.68rem; color: var(--brown); margin-top: 8px; line-height: 1.4; }
+  .stat.warn { background: var(--yellow); border-color: var(--yellow); }
+
+  .pill { font-size: 0.62rem; font-weight: 700; padding: 4px 9px; border-radius: 20px; text-transform: uppercase; white-space: nowrap; }
+  .pill.ok { background: rgba(91,66,57,0.08); color: var(--brown); }
+  .pill.low { background: var(--yellow); color: var(--black); }
+  .pill.gap { background: rgba(255,145,77,0.18); color: var(--brown); }
+
+  .btn { display: block; width: 100%; text-align: center; padding: 12px; border-radius: 12px; font-weight: 700; font-size: 0.88rem; margin-top: 16px; cursor: pointer; font-family: 'Urbanist', sans-serif; background: transparent; }
+  .btn.primary { border: 1.5px solid var(--orange); color: var(--orange); }
+  .btn.primary:hover { background: rgba(255,145,77,0.08); }
+  .btn.dark { border: 1.5px solid var(--black); color: var(--black); }
+  .btn.dark:hover { background: rgba(23,19,15,0.05); }
+  .hint { font-size: 0.7rem; color: var(--brown); margin-top: 5px; line-height: 1.4; }
+
+  label { display: block; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--brown); margin: 12px 0 5px; }
+  input, select { width: 100%; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 10px; font-size: 0.92rem; font-family: 'Urbanist', sans-serif; background: var(--white); }
+  input:focus, select:focus { outline: none; border-color: var(--orange); box-shadow: 0 0 0 3px rgba(255,145,77,0.16); }
+
+  .tabbar { position: absolute; bottom: 0; left: 0; right: 0; background: var(--white); border-top: 1px solid var(--border); display: flex; padding: 8px 4px 14px; overflow-x: auto; }
+  .tab { flex: 1; min-width: 64px; text-align: center; font-size: 0.58rem; font-weight: 600; color: var(--brown); padding: 6px 2px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.02em; border-radius: 10px; }
+  .tab .ic { font-size: 1.05rem; display: block; margin-bottom: 2px; }
+  .tab .ic svg { width: 19px; height: 19px; display: inline-block; }
+  .tab.active .ic svg { stroke: var(--black); }
+  .tab.active { color: var(--black); background: rgba(255,145,77,0.16); }
+
+  .pin-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 30px; text-align: center; }
+  .pin-screen .mark { height: 46px; width: 46px; border-radius: 12px; background: var(--black); color: var(--cream); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1.3rem; margin-bottom: 10px; }
+  .pin-screen .word { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1.3rem; margin-bottom: 4px; }
+  .pin-screen .sub { font-size: 0.72rem; color: var(--brown); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 22px; }
+  .pin-dots { display: flex; gap: 12px; margin-bottom: 22px; }
+  .pin-dots span { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--brown); }
+  .pin-dots span.filled { background: var(--black); border-color: var(--black); }
+  .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 220px; }
+  .pin-pad button { padding: 16px 0; border-radius: 14px; border: 1.5px solid var(--border); background: var(--white); font-size: 1.1rem; font-weight: 700; cursor: pointer; }
+  .pin-error { color: #c23; font-size: 0.75rem; margin-top: 12px; min-height: 16px; }
+
+  .sync-status { font-size: 0.64rem; color: var(--brown); text-align: center; padding: 6px; }
+  .sync-status.offline { color: #c23; font-weight: 700; }
+  .empty-state { text-align: center; color: var(--brown); font-size: 0.85rem; padding: 20px 10px; }
+
+  .coming-next { border: 1.5px dashed var(--brown); border-radius: 16px; padding: 22px 16px; text-align: center; color: var(--brown); }
+  .coming-next .cn-title { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 1rem; color: var(--black); margin-bottom: 6px; }
+  .coming-next .cn-step { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.03em; background: var(--yellow); color: var(--black); display: inline-block; padding: 3px 10px; border-radius: 10px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<div class="app" id="appShell">
+  <div class="sidebar" id="sidebar">
+    <div class="brand-row"><div class="mark">L</div><div class="word">LCL<span>Operations Centre</span></div></div>
+    <div class="nav-item active" data-screen="dashboard">Command Center</div>
+    <div class="nav-item" data-screen="planner">Planner</div>
+    <div class="nav-item" data-screen="calendar">Calendar</div>
+    <div class="nav-item" data-screen="tasks">Tasks</div>
+    <div class="nav-item" data-screen="directorAttention">Director Attention</div>
+    <div class="nav-item" data-screen="communications">Communications</div>
+    <div class="nav-item" data-screen="production">Production</div>
+    <div class="nav-item" data-screen="deliveries">Deliveries</div>
+    <div class="nav-item" data-screen="purchasing">Purchasing</div>
+    <div class="nav-divider"></div>
+    <div class="nav-item admin-item" data-screen="adminGate" id="adminNavItem">Admin</div>
+    <div class="sync-status" id="syncStatusSidebar"></div>
+  </div>
+
+  <!-- STAFF PIN GATE -->
+  <div class="screen active" id="pin">
+    <div class="pin-screen">
+      <div class="mark">L</div>
+      <div class="word">LCL Operations Centre</div>
+      <div class="sub">Staff PIN</div>
+      <div class="pin-dots" id="pinDots"><span></span><span></span><span></span><span></span></div>
+      <div class="pin-pad" id="pinPad">
+        <button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button>
+        <button data-n="4">4</button><button data-n="5">5</button><button data-n="6">6</button>
+        <button data-n="7">7</button><button data-n="8">8</button><button data-n="9">9</button>
+        <button data-action="clear">Clear</button><button data-n="0">0</button><button data-action="back">⌫</button>
+      </div>
+      <div class="pin-error" id="pinError"></div>
+    </div>
+  </div>
+
+  <div class="screen" id="workerPrompt">
+    <div class="pin-screen">
+      <div class="mark">L</div>
+      <div class="word">LCL Operations Centre</div>
+      <div style="font-size:0.95rem; font-weight:700; margin:16px 0; text-align:center;">Who's working here today?</div>
+      <input id="workerNameInput" placeholder="First name" style="text-align:center; font-size:1rem; padding:12px; max-width:240px;">
+      <button class="btn primary" id="startWorking" style="max-width:240px;">Start Working</button>
+    </div>
+  </div>
+
+  <!-- ADMIN PIN GATE -->
+  <div class="screen" id="adminGate">
+    <div class="pin-screen">
+      <div class="mark">L</div>
+      <div class="word">Admin</div>
+      <div class="sub">Enter Admin PIN to unlock Manager tier</div>
+      <div class="pin-dots" id="adminPinDots"><span></span><span></span><span></span><span></span></div>
+      <div class="pin-pad" id="adminPinPad">
+        <button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button>
+        <button data-n="4">4</button><button data-n="5">5</button><button data-n="6">6</button>
+        <button data-n="7">7</button><button data-n="8">8</button><button data-n="9">9</button>
+        <button data-action="clear">Clear</button><button data-n="0">0</button><button data-action="back">⌫</button>
+      </div>
+      <div class="pin-error" id="adminPinError"></div>
+      <button class="btn dark" id="adminBackBtn" style="max-width:220px;">← Back</button>
+    </div>
+  </div>
+
+  <div class="main">
+  <div class="topbar" id="topbar" style="display:none;">
+    <div class="mark">L</div>
+    <div class="word">LCL <span>Operations Centre</span></div>
+    <div class="screen-label" id="screenLabel">Command Center</div>
+    <div class="mgr-badge" id="mgrBadge" style="display:none;">Manager</div>
+    <div class="worker-badge" id="workerBadge" style="display:none;"></div>
+  </div>
+
+  <!-- COMMAND CENTER -->
+  <div class="screen" id="dashboard">
+    <h2 class="title">Command Center</h2>
+    <div class="sync-status" id="syncStatus">Loading…</div>
+
+    <h3 class="section-title">Production</h3>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-head"><div class="lbl">Total Records</div></div>
+        <div class="num" id="statProduction">—</div>
+        <div class="hint">Planned · Ready · Blocked · Completed breakdown lands in Phase 4, once Production tracking is built.</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Incoming &amp; Outgoing</h3>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-head"><div class="lbl">Total Deliveries</div></div>
+        <div class="num" id="statDeliveries">—</div>
+        <div class="hint">Incoming/outgoing split, packaging readiness and delivery status land in Phase 4.</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Purchasing</h3>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-head"><div class="lbl">Total Purchases</div></div>
+        <div class="num" id="statPurchases">—</div>
+        <div class="hint">Pending · Awaiting payment · Awaiting supplier · Arrived breakdown lands in Phase 4.</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Director Attention</h3>
+    <div class="stat-row">
+      <div class="stat warn">
+        <div class="stat-head"><div class="lbl">Outstanding</div></div>
+        <div class="num" id="statDirectorAttention">—</div>
+        <div class="hint" id="directorAttentionHint">Priority and overdue detail land in Phase 3.</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Team</h3>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-head"><div class="lbl">Total Tasks</div></div>
+        <div class="num" id="statTasks">—</div>
+        <div class="hint">Due today · Overdue · Assigned to you land in Phase 3.</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Calendar</h3>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-head"><div class="lbl">Total Events</div></div>
+        <div class="num" id="statCalendar">—</div>
+        <div class="hint">Today's and upcoming views land in Phase 3.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLACEHOLDER SCREENS: built out in the phase noted on each card -->
+  <div class="screen" id="planner"><h2 class="title">Planner</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Company Planner</div>Today / Tomorrow / This Week / Next Week / Later views land here.</div></div>
+  <div class="screen" id="calendar"><h2 class="title">Calendar</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Company Calendar</div>Month / week / day / list views, linked to underlying records.</div></div>
+  <div class="screen" id="tasks"><h2 class="title">Tasks</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Task System</div>Create, assign and track tasks through to completion.</div></div>
+  <div class="screen" id="directorAttention"><h2 class="title">Director Attention</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Director Attention Queue</div>Flag items for Dr. Efua and track her responses.</div></div>
+  <div class="screen" id="communications"><h2 class="title">Communications</h2><div class="coming-next"><div class="cn-step">Phase 3</div><div class="cn-title">Communication Center</div>Team / client / supplier / Director follow-up tracking.</div></div>
+  <div class="screen" id="production"><h2 class="title">Production</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Production Workflow</div>Readiness checklist, status tracking, and the read-only Inventory reference lookup.</div></div>
+  <div class="screen" id="deliveries"><h2 class="title">Deliveries</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Incoming &amp; Outgoing Movement</div>Delivery tracking for both directions.</div></div>
+  <div class="screen" id="purchasing"><h2 class="title">Purchasing</h2><div class="coming-next"><div class="cn-step">Phase 4</div><div class="cn-title">Purchasing Workflow</div>Need → Approval → Ordered → Paid → Received lifecycle.</div></div>
+
+  <div class="tabbar" id="tabbar">
+    <div class="tab active" data-screen="dashboard"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Home</div>
+    <div class="tab" data-screen="tasks"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9"/></svg></span>Tasks</div>
+    <div class="tab" data-screen="directorAttention"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg></span>Director</div>
+    <div class="tab" data-screen="calendar"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke-linecap="round"/></svg></span>Calendar</div>
+    <div class="tab" data-screen="planner"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6h16M4 12h16M4 18h10" stroke-linecap="round"/></svg></span>Planner</div>
+  </div>
+  </div>
+</div>
+
+<script>
+// ===================================================================
+// CONFIG — own deployment, own PINs. Nothing here is shared with, or
+// written to, LCL Inventory's backend. Fill in SCRIPT_URL after
+// deploying OC's own Apps Script project (see apps-script/SETUP.md).
+// Change these PIN placeholders before real use.
+// ===================================================================
+const SCRIPT_URL = "";
+const STAFF_PIN = "1234";
+const ADMIN_PIN = "9876";
+
+// ---------- offline-first cache + sync queue (own keys, own namespace) ----------
+const CACHE_KEY = "lcl_oc_cache_v1";
+const QUEUE_KEY = "lcl_oc_queue_v1";
+const WORKER_KEY = "lcl_oc_worker_v1";
+
+function loadCache() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CACHE_KEY));
+    if (raw) return raw;
+  } catch (e) {}
+  const empty = { counts: {}, lastSynced: null };
+  localStorage.setItem(CACHE_KEY, JSON.stringify(empty));
+  return empty;
+}
+function saveCache(c) { localStorage.setItem(CACHE_KEY, JSON.stringify(c)); }
+function loadQueue() {
+  try { return JSON.parse(localStorage.getItem(QUEUE_KEY)) || []; }
+  catch (e) { return []; }
+}
+function saveQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+function enqueue(type, payload) {
+  const q = loadQueue();
+  q.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2), type: type, payload: payload });
+  saveQueue(q);
+  trySync();
+}
+
+// ---------- network ----------
+function isConfigured() {
+  return SCRIPT_URL && SCRIPT_URL.indexOf("http") === 0;
+}
+
+async function callBackend(action, payload) {
+  if (!isConfigured()) throw new Error("SCRIPT_URL not set yet");
+  const url = SCRIPT_URL + "?action=" + encodeURIComponent(action);
+  const res = await fetch(url, {
+    method: "POST",
+    body: JSON.stringify(payload || {}),
+    headers: { "Content-Type": "text/plain;charset=utf-8" }
+  });
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error("Non-JSON response from server (likely rate-limited) — will retry");
+  }
+}
+
+async function fetchBootstrap() {
+  if (!isConfigured()) throw new Error("SCRIPT_URL not set yet");
+  const res = await fetch(SCRIPT_URL + "?action=getBootstrap");
+  return res.json();
+}
+
+// ---------- sync engine ----------
+let syncing = false;
+let lastSyncError = null;
+async function trySync() {
+  if (syncing || !navigator.onLine || !isConfigured()) { renderSyncStatus(); return; }
+  syncing = true;
+  lastSyncError = null;
+  try {
+    let queue = loadQueue();
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+      try {
+        const result = await callBackend(item.type, item.payload);
+        if (result.status !== "ok") throw new Error(result.message || "backend error");
+        saveQueue(loadQueue().filter(q => q.id !== item.id));
+      } catch (err) {
+        lastSyncError = (item.type + ": " + err.message);
+      }
+      if (i < queue.length - 1) await new Promise(r => setTimeout(r, 250));
+    }
+    const data = await fetchBootstrap();
+    if (data.status === "ok") {
+      const cache = loadCache();
+      cache.counts = data.counts;
+      cache.lastSynced = new Date().toISOString();
+      saveCache(cache);
+      renderDashboard();
+    }
+  } catch (err) {
+    lastSyncError = err.message;
+  }
+  syncing = false;
+  renderSyncStatus();
+}
+
+function timeAgo(iso) {
+  const diff = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diff < 1) return "just now";
+  if (diff < 60) return diff + "m ago";
+  return Math.round(diff / 60) + "h ago";
+}
+
+function renderSyncStatus() {
+  const cache = loadCache();
+  const queueLen = loadQueue().length;
+  let text;
+  let hasError = false;
+  if (!isConfigured()) {
+    text = "⚠ Backend not connected yet — set SCRIPT_URL in the code";
+    hasError = true;
+  } else if (lastSyncError) {
+    text = "⚠ Sync issue: " + lastSyncError + (queueLen ? " · " + queueLen + " still pending" : "");
+    hasError = true;
+  } else if (!navigator.onLine) {
+    text = "Offline" + (queueLen ? " · " + queueLen + " pending sync" : "") + (cache.lastSynced ? " · last synced " + timeAgo(cache.lastSynced) : "");
+  } else if (queueLen) {
+    text = "Syncing " + queueLen + " item(s)…";
+  } else {
+    text = cache.lastSynced ? "Synced " + timeAgo(cache.lastSynced) : "Not synced yet";
+  }
+  ["syncStatus", "syncStatusSidebar"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = text; el.classList.toggle("offline", !navigator.onLine || !isConfigured() || hasError); }
+  });
+}
+
+window.addEventListener("online", trySync);
+window.addEventListener("offline", renderSyncStatus);
+setInterval(trySync, 60000);
+
+// ---------- Command Center rendering ----------
+function renderDashboard() {
+  const cache = loadCache();
+  const counts = cache.counts || {};
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = (val === undefined || val === null) ? "—" : val; };
+  set("statProduction", counts.Production);
+  set("statDeliveries", counts.Deliveries);
+  set("statPurchases", counts.Purchases);
+  set("statDirectorAttention", counts.DirectorAttention);
+  set("statTasks", counts.Tasks);
+  set("statCalendar", counts.Calendar);
+
+  const hint = document.getElementById("directorAttentionHint");
+  if (hint) {
+    hint.textContent = currentTier === "Manager"
+      ? "Priority and overdue detail land in Phase 3 — Manager tier will see full detail here."
+      : "Priority and overdue detail land in Phase 3. Full detail is visible to the Manager tier.";
+  }
+}
+
+// ---------- navigation ----------
+function showScreen(name) {
+  document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === name));
+  document.querySelectorAll(".sidebar .nav-item[data-screen]").forEach(n => n.classList.toggle("active", n.dataset.screen === name));
+  document.querySelectorAll(".tab[data-screen]").forEach(t => t.classList.toggle("active", t.dataset.screen === name));
+  const label = document.getElementById("screenLabel");
+  const navEl = document.querySelector('.sidebar .nav-item[data-screen="' + name + '"]');
+  if (label && navEl) label.textContent = navEl.textContent;
+  if (label && name === "adminGate") label.textContent = "Admin";
+}
+
+document.querySelectorAll(".sidebar .nav-item[data-screen], .tab[data-screen]").forEach(el => {
+  el.addEventListener("click", () => {
+    if (!appUnlocked) return;
+    showScreen(el.dataset.screen);
+  });
+});
+
+// ---------- staff PIN gate ----------
+let appUnlocked = false;
+let currentWorker = "";
+let currentTier = "Employee";
+let enteredPin = "";
+
+function updatePinDots() {
+  document.querySelectorAll("#pinDots span").forEach((d, i) => d.classList.toggle("filled", i < enteredPin.length));
+}
+function pressPinKey(key) {
+  document.getElementById("pinError").textContent = "";
+  if (key === "clear") { enteredPin = ""; }
+  else if (key === "back") { enteredPin = enteredPin.slice(0, -1); }
+  else if (enteredPin.length < 4) { enteredPin += key; }
+  updatePinDots();
+  if (enteredPin.length === 4) {
+    if (enteredPin === STAFF_PIN) {
+      showScreen("workerPrompt");
+      const last = localStorage.getItem(WORKER_KEY) || "";
+      const input = document.getElementById("workerNameInput");
+      input.value = last;
+      setTimeout(() => input.focus(), 50);
+    } else {
+      document.getElementById("pinError").textContent = "Incorrect PIN";
+      enteredPin = "";
+      updatePinDots();
+    }
+  }
+}
+document.getElementById("pinPad").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  pressPinKey(btn.dataset.action || btn.dataset.n);
+});
+
+function startWorking() {
+  const name = document.getElementById("workerNameInput").value.trim();
+  if (!name) { document.getElementById("workerNameInput").focus(); return; }
+  currentWorker = name;
+  currentTier = "Employee";
+  localStorage.setItem(WORKER_KEY, name);
+  document.getElementById("workerBadge").textContent = name;
+  document.getElementById("workerBadge").style.display = "inline-block";
+  document.getElementById("topbar").style.display = "flex";
+  document.getElementById("appShell").classList.add("unlocked");
+  appUnlocked = true;
+  showScreen("dashboard");
+  enqueue("logUser", { name: currentWorker, tier: currentTier });
+  loadCache();
+  renderDashboard();
+  renderSyncStatus();
+  trySync();
+}
+document.getElementById("startWorking").addEventListener("click", startWorking);
+document.getElementById("workerNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") startWorking(); });
+
+// ---------- admin PIN gate (elevates the session to Manager tier) ----------
+let adminEnteredPin = "";
+function updateAdminPinDots() {
+  document.querySelectorAll("#adminPinDots span").forEach((d, i) => d.classList.toggle("filled", i < adminEnteredPin.length));
+}
+function pressAdminPinKey(key) {
+  document.getElementById("adminPinError").textContent = "";
+  if (key === "clear") { adminEnteredPin = ""; }
+  else if (key === "back") { adminEnteredPin = adminEnteredPin.slice(0, -1); }
+  else if (adminEnteredPin.length < 4) { adminEnteredPin += key; }
+  updateAdminPinDots();
+  if (adminEnteredPin.length === 4) {
+    if (adminEnteredPin === ADMIN_PIN) {
+      currentTier = "Manager";
+      document.getElementById("mgrBadge").style.display = "inline-block";
+      document.getElementById("adminNavItem").textContent = "Exit Admin";
+      adminEnteredPin = "";
+      updateAdminPinDots();
+      enqueue("logUser", { name: currentWorker, tier: currentTier });
+      renderDashboard();
+      showScreen("dashboard");
+    } else {
+      document.getElementById("adminPinError").textContent = "Incorrect PIN";
+      adminEnteredPin = "";
+      updateAdminPinDots();
+    }
+  }
+}
+document.getElementById("adminPinPad").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  pressAdminPinKey(btn.dataset.action || btn.dataset.n);
+});
+document.getElementById("adminBackBtn").addEventListener("click", () => showScreen("dashboard"));
+document.getElementById("adminNavItem").addEventListener("click", () => {
+  if (currentTier === "Manager") {
+    // Drop back to Employee tier rather than re-prompting for the PIN.
+    currentTier = "Employee";
+    document.getElementById("mgrBadge").style.display = "none";
+    document.getElementById("adminNavItem").textContent = "Admin";
+    renderDashboard();
+    showScreen("dashboard");
+  }
+});
+
+// ---------- boot ----------
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+  });
+}
+loadCache();
+renderSyncStatus();
+</script>
+</body>
+</html>

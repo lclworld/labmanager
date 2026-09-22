@@ -1,0 +1,9 @@
+{
+  "name": "LCL Operations Centre",
+  "short_name": "LCL OC",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#FBF8EF",
+  "theme_color": "#17130F",
+  "icons": []
+}
