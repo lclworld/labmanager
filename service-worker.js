@@ -1,4 +1,9 @@
-const CACHE_NAME = "lcl-oc-shell-v1";
+// Bump this string on every deploy that changes index.html/manifest.json —
+// it's the only thing that makes the browser notice the service worker
+// itself changed and install the new version (which then re-caches the
+// shell fresh). Without a bump here, cache-first shell files can keep
+// serving an old index.html forever, hard refresh or not.
+const CACHE_NAME = "lcl-oc-shell-v2";
 const SHELL_FILES = ["./index.html", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
