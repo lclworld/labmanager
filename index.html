@@ -80,6 +80,7 @@
   .stat .lbl { font-size: 0.66rem; color: var(--brown); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 2px; }
   .stat .hint { font-size: 0.68rem; color: var(--brown); margin-top: 8px; line-height: 1.4; }
   .stat.warn { background: var(--yellow); border-color: var(--yellow); }
+  .hidden-field { display: none !important; }
   .check-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 600; color: var(--black); text-transform: none; letter-spacing: normal; margin: 14px 0 0; cursor: pointer; }
   .check-row input { width: 16px; height: 16px; flex: none; }
   .stat[data-nav-screen] { cursor: pointer; }
@@ -553,6 +554,11 @@
     <button class="btn primary" id="newDeliveryBtn">+ New Delivery</button>
     <div class="card" id="deliveryForm" style="display:none;">
       <label>Direction</label><select id="delDirection"><option>Incoming</option><option>Outgoing</option></select>
+      <div class="outgoing-only">
+        <label>Related Production</label>
+        <input id="delRelatedProduction" placeholder="Start typing a product name..." autocomplete="off">
+        <div id="delRelatedProductionHint"></div>
+      </div>
       <label>Client or Supplier</label><input id="delClientOrSupplier" placeholder="Name">
       <label>Items</label><textarea id="delItems" placeholder="What's being delivered"></textarea>
       <div class="form-grid">
@@ -560,10 +566,15 @@
         <div><label>Expected Time</label><input type="time" id="delExpectedTime"></div>
         <div><label>Contact</label><input id="delContact" placeholder="Optional"></div>
         <div><label>Cost</label><input id="delCost" placeholder="Optional"></div>
+        <div><label>Payment Status</label><select id="delPaymentStatus"><option>Pending</option><option>Paid</option><option>N/A</option></select></div>
+      </div>
+      <div class="outgoing-only form-grid">
         <div><label>Packaging Status</label><select id="delPackagingStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
         <div><label>Label Status</label><select id="delLabelStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
         <div><label>Box Status</label><select id="delBoxStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
-        <div><label>Payment Status</label><select id="delPaymentStatus"><option>Pending</option><option>Paid</option><option>N/A</option></select></div>
+      </div>
+      <div class="outgoing-only">
+        <label class="check-row"><input type="checkbox" id="delPifEmailed"> Product Information File emailed to client</label>
       </div>
       <label>Notes</label><textarea id="delNotes" placeholder="Optional"></textarea>
       <button class="btn primary" id="saveDeliveryBtn">Save Delivery</button>
@@ -1515,9 +1526,42 @@ document.getElementById("prodInventoryRefHint").addEventListener("click", (e) =>
 });
 
 // ---------- Deliveries ----------
+// Packaging/label/box status and PIF only mean anything for what WE ship
+// out — an incoming delivery of raw materials has no packaging of ours to
+// track. Toggled by direction, not a separate step anyone has to think about.
+function updateDeliveryFormVisibility() {
+  const isOutgoing = document.getElementById("delDirection").value === "Outgoing";
+  document.querySelectorAll("#deliveryForm .outgoing-only").forEach(el => el.classList.toggle("hidden-field", !isOutgoing));
+}
+document.getElementById("delDirection").addEventListener("change", updateDeliveryFormVisibility);
 document.getElementById("newDeliveryBtn").addEventListener("click", () => {
   const form = document.getElementById("deliveryForm");
   form.style.display = form.style.display === "none" ? "block" : "none";
+  updateDeliveryFormVisibility();
+});
+// Related Production autocomplete — picking one prefills Items (and Client
+// if it's blank) from that record, so the product name/code only ever
+// gets typed once, on the Production record itself.
+document.getElementById("delRelatedProduction").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  const hint = document.getElementById("delRelatedProductionHint");
+  if (!q) { hint.innerHTML = ""; return; }
+  const matches = (loadCache().production || []).filter(p => p.archived !== "Yes" && (p.product || "").toLowerCase().includes(q)).slice(0, 6);
+  if (!matches.length) { hint.innerHTML = ""; return; }
+  hint.innerHTML = '<div class="autocomplete-list">' + matches.map(p => `<div data-id="${escapeHtml(p.productionId)}">${escapeHtml(p.product)}${p.client ? " — " + escapeHtml(p.client) : ""}</div>`).join("") + "</div>";
+});
+document.getElementById("delRelatedProductionHint").addEventListener("click", (e) => {
+  const item = e.target.closest("[data-id]");
+  if (!item) return;
+  const production = (loadCache().production || []).find(p => p.productionId === item.dataset.id);
+  if (!production) return;
+  document.getElementById("delRelatedProduction").value = production.product;
+  document.getElementById("delRelatedProduction").dataset.productionId = production.productionId;
+  const itemsField = document.getElementById("delItems");
+  if (!itemsField.value.trim()) itemsField.value = production.product + (production.batchSize ? " (" + production.batchSize + ")" : "");
+  const clientField = document.getElementById("delClientOrSupplier");
+  if (!clientField.value.trim() && production.client) clientField.value = production.client;
+  document.getElementById("delRelatedProductionHint").innerHTML = "";
 });
 document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
   const items = document.getElementById("delItems").value.trim();
@@ -1538,6 +1582,8 @@ document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
     cost: document.getElementById("delCost").value.trim(),
     status: "Scheduled",
     notes: document.getElementById("delNotes").value.trim(),
+    relatedProduction: document.getElementById("delRelatedProduction").dataset.productionId || "",
+    pifEmailed: document.getElementById("delPifEmailed").checked ? "Yes" : "No",
     createdBy: currentWorker,
     createdDate: now,
     lastUpdated: now
@@ -1548,7 +1594,9 @@ document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
   saveCache(cache);
   renderDeliveries();
   renderDashboard();
-  ["delClientOrSupplier", "delItems", "delDeliveryDate", "delExpectedTime", "delContact", "delCost", "delNotes"].forEach(id => document.getElementById(id).value = "");
+  ["delClientOrSupplier", "delItems", "delDeliveryDate", "delExpectedTime", "delContact", "delCost", "delNotes", "delRelatedProduction"].forEach(id => document.getElementById(id).value = "");
+  delete document.getElementById("delRelatedProduction").dataset.productionId;
+  document.getElementById("delPifEmailed").checked = false;
   document.getElementById("deliveryForm").style.display = "none";
   enqueue("createDelivery", fields);
   createPrepTaskForDelivery(fields);
@@ -1586,8 +1634,46 @@ function createPrepTaskForDelivery(delivery) {
   enqueue("createTask", taskFields);
 }
 
-// Automation (Section 17): marking a purchase Ordered surfaces it under
-// Incoming so nobody has to re-enter it as a delivery by hand.
+// Automation: an outgoing delivery marked Delivered auto-schedules the
+// feedback-email follow-up, same pattern as the prep task above — fires
+// once, only on the actual transition into Delivered.
+function createFeedbackEmailTask(delivery) {
+  const now = new Date().toISOString();
+  const due = new Date();
+  due.setDate(due.getDate() + 5);
+  const taskFields = {
+    title: "Send feedback email to " + (delivery.clientOrSupplier || "client"),
+    description: "Following up on delivery of " + delivery.items,
+    category: "Client",
+    priority: "Normal",
+    assignedTo: "",
+    createdBy: currentWorker,
+    createdDate: now,
+    dueDate: due.toISOString().slice(0, 10),
+    completedDate: "",
+    directorAttentionFlag: false,
+    missingInformation: "",
+    notes: "Auto-created — delivery to " + (delivery.clientOrSupplier || "") + " marked Delivered.",
+    relatedRecord: "Outgoing delivery — " + (delivery.clientOrSupplier || ""),
+    status: "Not Started",
+    lastUpdated: now
+  };
+  const cache = loadCache();
+  cache.tasks = cache.tasks || [];
+  cache.tasks.unshift(Object.assign({ taskId: "TASK-pending-" + Date.now(), pending: true }, taskFields));
+  saveCache(cache);
+  renderTasks();
+  renderPlanner();
+  renderDashboard();
+  enqueue("createTask", taskFields);
+}
+
+// Automation (Section 17): marking a purchase Ordered or Awaiting Supplier
+// surfaces it under Incoming so nobody has to re-enter it as a delivery by
+// hand. Guarded against firing twice for the same purchase.
+function hasIncomingDeliveryForPurchase(purchaseId) {
+  return (loadCache().deliveries || []).some(d => d.direction === "Incoming" && d.notes && d.notes.includes(purchaseId));
+}
 function createIncomingDeliveryForPurchase(purchase) {
   const now = new Date().toISOString();
   const fields = {
@@ -1604,7 +1690,7 @@ function createIncomingDeliveryForPurchase(purchase) {
     paymentStatus: purchase.paid === "Yes" ? "Paid" : "Pending",
     cost: purchase.amount || "",
     status: "Scheduled",
-    notes: "Auto-created — purchase " + (purchase.purchaseId || "") + " (" + (purchase.item || "") + ") marked Ordered.",
+    notes: "Auto-created — purchase " + (purchase.purchaseId || "") + " (" + (purchase.item || "") + ") marked " + purchase.status + ".",
     createdBy: currentWorker,
     createdDate: now,
     lastUpdated: now
@@ -2074,18 +2160,49 @@ function buildRecordHtml(type, rec) {
   } else if (type === "production") {
     html += `<h3>${escapeHtml(rec.product)}</h3>`;
     html += kv("Client", rec.client) + kv("Batch Size", rec.batchSize) + kv("Planned Date", fmtDate(rec.plannedDate)) + kv("Assigned Staff", rec.assignedStaff) + kv("Inventory Reference", rec.inventoryReference);
-    html += kv("Packaging", rec.packagingReadiness) + kv("Label", rec.labelReadiness) + kv("Box", rec.boxReadiness) + kv("Batch Sheet", rec.batchSheetStatus) + kv("SOP", rec.sopStatus) + kv("QC Status", rec.qcStatus) + kv("Filling Status", rec.fillingStatus) + kv("Director Review", rec.directorReviewStatus) + kv("Notes", rec.notes);
+    html += kv("Packaging", rec.packagingReadiness) + kv("Label", rec.labelReadiness) + kv("Box", rec.boxReadiness) + kv("Batch Sheet", rec.batchSheetStatus) + kv("SOP", rec.sopStatus) + kv("Notes", rec.notes);
     if (rec.blocker) html += `<div class="blocker-banner">⚠ ${escapeHtml(rec.blocker)}</div>`;
     html += buildProductionSheetHtml(rec.inventoryReference);
     html += `<label>Overall Status</label><select id="editStatus">${["READY", "BLOCKED", "WAITING FOR DIRECTOR", "WAITING FOR PURCHASE", "IN PRODUCTION", "QC", "COMPLETED"].map(s => `<option ${s === rec.productionStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<div class="info-box"><div class="ib-label">QC &amp; Filling</div>`;
+    html += `<label>QC Status</label><select id="editQcStatus">${["Not Started", "In Progress", "Passed", "Failed"].map(s => `<option ${s === rec.qcStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<label>Filling Status</label><select id="editFillingStatus">${["Not Started", "In Progress", "Completed"].map(s => `<option ${s === rec.fillingStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<label>Director Review</label><select id="editDirectorReviewStatus">${["Not Reviewed", "Reviewed", "Needs Changes"].map(s => `<option ${s === rec.directorReviewStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+    html += `<div class="info-box"><div class="ib-label">Post-Production — fill once, feeds the summary below</div>`;
+    html += `<div class="form-grid">`;
+    html += `<div><label>Packaging Type</label><input id="editPackagingType" value="${escapeHtml(rec.packagingType || "")}" placeholder="e.g. Amber bottle"></div>`;
+    html += `<div><label>Packaging Size</label><input id="editPackagingSize" value="${escapeHtml(rec.packagingSize || "")}" placeholder="e.g. 50ml"></div>`;
+    html += `<div><label>Quantity Filled</label><input id="editQuantityFilled" value="${escapeHtml(rec.quantityFilled || "")}"></div>`;
+    html += `<div><label>Unit Weight</label><input id="editUnitWeight" value="${escapeHtml(rec.unitWeight || "")}"></div>`;
+    html += `<div><label>Actual Production Date</label><input type="date" id="editActualProductionDate" value="${escapeHtml(rec.actualProductionDate || "")}"></div>`;
+    html += `</div></div>`;
+    html += `<div class="info-box"><div class="ib-label">Product Information File (PIF)</div>`;
+    html += `<label>PIF Status</label><select id="editPifStatus">${["Not Started", "In Progress", "Completed"].map(s => `<option ${s === rec.pifStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<label>PIF Link</label><input id="editPifLink" value="${escapeHtml(rec.pifLink || "")}" placeholder="Link to the PIF doc (optional)"></div>`;
+    html += `<div class="info-box"><div class="ib-label">Post-Production Summary</div>` +
+      kv("Product", rec.product) + kv("Batch Size", rec.batchSize) +
+      kv("Packaging", [rec.packagingType, rec.packagingSize].filter(Boolean).join(" · ")) +
+      kv("Quantity Filled", rec.quantityFilled) + kv("Unit Weight", rec.unitWeight) +
+      kv("Production Date", fmtDate(rec.actualProductionDate || rec.plannedDate)) +
+      kv("Updated By", currentWorker) +
+      `</div>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update Production Record</button>`;
     if (currentTier === "Manager" && rec.productionStatus === "BLOCKED") {
       html += `<div class="manager-only"><div class="mo-label">Manager Override</div><div class="hint" style="margin:0 0 10px;">Packaging/labels/boxes aren't fully ready — proceed anyway (Section 11: never a hard stop).</div><button class="btn dark" id="overrideBlockerBtn">Override Blocker — Proceed Anyway</button></div>`;
     }
   } else if (type === "delivery") {
+    const isOutgoing = rec.direction === "Outgoing";
     html += `<h3>${escapeHtml(rec.direction)} · ${escapeHtml(rec.clientOrSupplier || "Unnamed")}</h3>`;
-    html += kv("Items", rec.items) + kv("Delivery Date", fmtDate(rec.deliveryDate)) + kv("Expected Time", rec.expectedTime) + kv("Contact", rec.contact) + kv("Packaging", rec.packagingStatus) + kv("Label", rec.labelStatus) + kv("Box", rec.boxStatus) + kv("Payment Status", rec.paymentStatus) + kv("Cost", fmtNum(rec.cost)) + kv("Client Confirmed", rec.clientConfirmation) + kv("Notes", rec.notes);
+    html += kv("Items", rec.items) + kv("Delivery Date", fmtDate(rec.deliveryDate)) + kv("Expected Time", rec.expectedTime) + kv("Contact", rec.contact);
+    if (isOutgoing) {
+      const linkedProduction = rec.relatedProduction ? findRecord("production", rec.relatedProduction) : null;
+      html += kv("Related Production", linkedProduction ? linkedProduction.product : "") + kv("Packaging", rec.packagingStatus) + kv("Label", rec.labelStatus) + kv("Box", rec.boxStatus) + kv("PIF Emailed", rec.pifEmailed);
+    }
+    html += kv("Payment Status", rec.paymentStatus) + kv("Cost", fmtNum(rec.cost)) + kv("Client Confirmed", rec.clientConfirmation) + kv("Notes", rec.notes);
     html += `<label>Status</label><select id="editStatus">${["Scheduled", "Packed", "Dispatched", "Delivered", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    if (isOutgoing) {
+      html += `<label class="check-row"><input type="checkbox" id="editPifEmailed" ${rec.pifEmailed === "Yes" ? "checked" : ""}> Product Information File emailed to client</label>`;
+    }
     html += `<button class="btn primary" id="recordSaveBtn">Update Delivery</button>`;
   } else if (type === "purchase") {
     html += `<h3>${escapeHtml(rec.item)}</h3>`;
@@ -2136,19 +2253,37 @@ function wireRecordModal(type, rec) {
       enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: patch });
       renderCommunications();
     } else if (type === "production") {
-      const patch = { productionStatus: newStatus };
+      const patch = {
+        productionStatus: newStatus,
+        qcStatus: document.getElementById("editQcStatus").value,
+        fillingStatus: document.getElementById("editFillingStatus").value,
+        directorReviewStatus: document.getElementById("editDirectorReviewStatus").value,
+        packagingType: document.getElementById("editPackagingType").value.trim(),
+        packagingSize: document.getElementById("editPackagingSize").value.trim(),
+        quantityFilled: document.getElementById("editQuantityFilled").value.trim(),
+        unitWeight: document.getElementById("editUnitWeight").value.trim(),
+        actualProductionDate: document.getElementById("editActualProductionDate").value,
+        pifStatus: document.getElementById("editPifStatus").value,
+        pifLink: document.getElementById("editPifLink").value.trim()
+      };
       applyLocalPatch("production", "productionId", rec.productionId, patch);
       enqueue("updateProduction", { productionId: rec.productionId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderProduction(); renderDashboard();
     } else if (type === "delivery") {
-      const patch = { status: newStatus };
+      const pifCheckbox = document.getElementById("editPifEmailed");
+      const patch = pifCheckbox ? { status: newStatus, pifEmailed: pifCheckbox.checked ? "Yes" : "No" } : { status: newStatus };
+      const justDelivered = rec.direction === "Outgoing" && rec.status !== "Delivered" && newStatus === "Delivered";
       applyLocalPatch("deliveries", "deliveryId", rec.deliveryId, patch);
       enqueue("updateDelivery", { deliveryId: rec.deliveryId, updatedBy: currentWorker, patch: patch });
       renderDeliveries(); renderDashboard();
+      if (justDelivered) createFeedbackEmailTask(Object.assign({}, rec, patch));
     } else if (type === "purchase") {
       const patch = { status: newStatus, ordered: document.getElementById("editOrdered").value, paid: document.getElementById("editPaid").value };
       const statusChangedTo = (target) => rec.status !== target && newStatus === target;
-      const willCreateDelivery = statusChangedTo("Ordered");
+      // Ordered and Awaiting Supplier both mean "this is now incoming" — a
+      // purchase can hit either first depending on how it's tracked, but
+      // only ever gets one delivery record (guarded below).
+      const willCreateDelivery = (statusChangedTo("Ordered") || statusChangedTo("Awaiting Supplier")) && !hasIncomingDeliveryForPurchase(rec.purchaseId);
       const willFlagDirector = statusChangedTo("Pending Approval");
       applyLocalPatch("purchases", "purchaseId", rec.purchaseId, patch);
       enqueue("updatePurchase", { purchaseId: rec.purchaseId, updatedBy: currentWorker, tier: currentTier, patch: patch });
