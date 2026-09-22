@@ -187,6 +187,8 @@
 
   .sync-status { font-size: 0.64rem; color: var(--brown); text-align: center; padding: 6px; }
   .sync-status.offline { color: #c23; font-weight: 700; }
+  .sync-issues-card { border-color: #c23; }
+  .sync-issues-card .record-row .btn.ghost { padding: 6px 12px; font-size: 0.75rem; }
   .empty-state { text-align: center; color: var(--brown); font-size: 0.85rem; padding: 20px 10px; }
 
   .coming-next { border: 1.5px dashed var(--brown); border-radius: 16px; padding: 22px 16px; text-align: center; color: var(--brown); }
@@ -273,6 +275,7 @@
   <div class="screen" id="dashboard">
     <h2 class="title">Command Center</h2>
     <div class="sync-status" id="syncStatus">Loading…</div>
+    <div class="card sync-issues-card" id="syncIssuesCard" style="display:none;"></div>
 
     <div class="card external-link-card">
       <div>
@@ -713,6 +716,25 @@ async function fetchJSON(action) {
 // ---------- sync engine ----------
 let syncing = false;
 let lastSyncError = null;
+
+// A record's placeholder ID until the backend confirms it and hands back a
+// real one (see the "*-pending-" unshifts throughout this file). A real
+// server-assigned ID never matches this pattern, so any queued action still
+// aimed at one — after a full resync has run — is provably orphaned: its
+// create either already landed under a different ID, or never will. Retrying
+// it forever would only repeat the same "not found" error indefinitely.
+const PENDING_ID_RE = /-pending-\d+$/;
+function queueItemTargetId(item) {
+  const p = item.payload || {};
+  return p.taskId || p.productionId || p.deliveryId || p.purchaseId || p.attentionId || p.eventId || p.communicationId || p.id || "";
+}
+function queueItemLabel(item) {
+  const words = (item.type || "").replace(/([A-Z])/g, " $1").trim();
+  const label = words.charAt(0).toUpperCase() + words.slice(1);
+  const target = queueItemTargetId(item);
+  return label + (target ? " — " + target : "");
+}
+
 async function trySync() {
   if (syncing || !navigator.onLine || !isConfigured()) { renderSyncStatus(); return; }
   syncing = true;
@@ -727,6 +749,9 @@ async function trySync() {
         saveQueue(loadQueue().filter(q => q.id !== item.id));
       } catch (err) {
         lastSyncError = (item.type + ": " + err.message);
+        const q2 = loadQueue();
+        const idx = q2.findIndex(q => q.id === item.id);
+        if (idx >= 0) { q2[idx].attempts = (q2[idx].attempts || 0) + 1; saveQueue(q2); }
       }
       if (i < queue.length - 1) await new Promise(r => setTimeout(r, 250));
     }
@@ -753,6 +778,21 @@ async function trySync() {
     if (logRes.status === "ok") cache.activityLog = logRes.entries;
     cache.lastSynced = new Date().toISOString();
     saveCache(cache);
+
+    // Every cached record now carries the server's own ID, which never
+    // contains "-pending-". Drop any leftover queued action still aimed at
+    // a placeholder ID automatically, instead of leaving a permanent,
+    // unfixable red banner for someone to chase down by hand.
+    const allFetchesOk = [bootstrap, tasksRes, calendarRes, attnRes, commsRes, prodRes, delRes, purRes, logRes].every(r => r.status === "ok");
+    if (allFetchesOk) {
+      const before = loadQueue();
+      const kept = before.filter(item => !PENDING_ID_RE.test(String(queueItemTargetId(item))));
+      if (kept.length !== before.length) {
+        saveQueue(kept);
+        lastSyncError = null;
+      }
+    }
+
     renderAll();
   } catch (err) {
     lastSyncError = err.message;
@@ -790,7 +830,37 @@ function renderSyncStatus() {
     const el = document.getElementById(id);
     if (el) { el.textContent = text; el.classList.toggle("offline", !navigator.onLine || !isConfigured() || hasError); }
   });
+  renderSyncIssues();
 }
+
+// A record that fails to sync a few times in a row (as opposed to the
+// one-off "-pending-" leftovers trySync() already clears on its own) is
+// surfaced here so a Manager can see exactly what it is and discard it —
+// no browser console required.
+function renderSyncIssues() {
+  const card = document.getElementById("syncIssuesCard");
+  if (!card) return;
+  const stuck = loadQueue().filter(item => (item.attempts || 0) >= 3);
+  if (!stuck.length) { card.style.display = "none"; card.innerHTML = ""; return; }
+  card.style.display = "block";
+  card.innerHTML = '<h3 class="section-title">⚠ Sync Issues (' + stuck.length + ')</h3>'
+    + '<div class="hint" style="margin:0 0 6px;">These haven\'t synced after several tries. Check the Sheet if you\'re unsure whether the change already went through, then discard — it will not retry again on its own.</div>'
+    + stuck.map(item => (
+      '<div class="record-row" style="cursor:default;">'
+      + '<div><div class="rr-title">' + escapeHtml(queueItemLabel(item)) + '</div>'
+      + '<div class="rr-meta">Failed ' + item.attempts + ' times</div></div>'
+      + (currentTier === "Manager"
+        ? '<button class="btn ghost sync-discard-btn" data-queue-id="' + escapeHtml(item.id) + '">Discard</button>'
+        : '<div class="rr-meta">Manager can discard</div>')
+      + '</div>'
+    )).join("");
+}
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".sync-discard-btn");
+  if (!btn || currentTier !== "Manager") return;
+  saveQueue(loadQueue().filter(item => item.id !== btn.dataset.queueId));
+  renderSyncStatus();
+});
 
 window.addEventListener("online", trySync);
 window.addEventListener("offline", renderSyncStatus);
