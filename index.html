@@ -1467,11 +1467,13 @@ document.getElementById("productionFilter").addEventListener("click", (e) => {
 });
 // Inventory batches/plans with no matching OC production record yet —
 // shown so real production in Inventory is visible here without anyone
-// having to re-type it.
+// having to re-type it. Only `batches` — actual production Inventory has
+// pushed to the employee view. `plans` is the Development Studio's
+// manager-only drafts, not yet pushed, and never shown here.
 function collectInventoryOnlyBatches() {
   const invCache = loadInventoryCache();
   const trackedRefs = new Set((loadCache().production || []).map(p => (p.inventoryReference || "").toLowerCase()).filter(Boolean));
-  return [].concat(invCache.batches || [], invCache.plans || []).filter(b => {
+  return (invCache.batches || []).filter(b => {
     const name = (b.name || b.productCode || "").toLowerCase();
     return name && !trackedRefs.has(name);
   });
@@ -1511,13 +1513,15 @@ document.getElementById("toggleInventoryLookupBtn").addEventListener("click", ()
   panel.style.display = panel.style.display === "none" ? "block" : "none";
 });
 
-// Inventory reference autocomplete against cached Inventory batches/plans.
+// Inventory reference autocomplete against cached Inventory batches only
+// (what's been pushed to the employee view — never the Development
+// Studio's unpushed plans).
 document.getElementById("prodInventoryRef").addEventListener("input", (e) => {
   const q = e.target.value.trim().toLowerCase();
   const hint = document.getElementById("prodInventoryRefHint");
   if (!q) { hint.innerHTML = ""; return; }
   const cache = loadInventoryCache();
-  const names = [].concat(cache.batches || [], cache.plans || [])
+  const names = (cache.batches || [])
     .map(b => b.name || b.productCode || "")
     .filter(n => n && n.toLowerCase().includes(q));
   const unique = [...new Set(names)].slice(0, 6);
@@ -1991,10 +1995,12 @@ function findRecord(type, id) {
   return arr.find(r => r[idKey] === id);
 }
 // Finds the Inventory batch/plan a production reference points to.
+// Only `batches` — what Inventory has actually pushed to the employee
+// view. `plans` (Development Studio drafts) never surface in OC.
 function findInventoryBatch(reference) {
   if (!reference) return null;
   const cache = loadInventoryCache();
-  return [].concat(cache.batches || [], cache.plans || []).find(b => (b.name || b.productCode || "").toLowerCase() === reference.toLowerCase()) || null;
+  return (cache.batches || []).find(b => (b.name || b.productCode || "").toLowerCase() === reference.toLowerCase()) || null;
 }
 // The real production sheet — phases and ingredient quantities, the way
 // Inventory itself shows it, not just a flat sufficiency check.
