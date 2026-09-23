@@ -1031,12 +1031,13 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
   };
   const cache = loadCache();
   cache.tasks = cache.tasks || [];
-  cache.tasks.unshift(Object.assign({ taskId: "TASK-pending-" + Date.now(), pending: true }, fields));
+  const localTask = Object.assign({ taskId: "TASK-pending-" + Date.now(), pending: true }, fields);
+  cache.tasks.unshift(localTask);
   saveCache(cache);
   renderTasks();
   renderDashboard();
   if (flagForDirector) {
-    flagDirectorForTask(fields);
+    flagDirectorForTask(localTask);
   }
   ["taskTitle", "taskDescription", "taskAssignedTo", "taskDueDate", "taskRelatedRecord", "taskNotes"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("taskFlagDirector").checked = false;
@@ -1048,7 +1049,7 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
 function flagDirectorForTask(task) {
   const now = new Date().toISOString();
   const fields = {
-    relatedRecord: task.title,
+    relatedRecord: task.taskId,
     category: task.category || "General",
     issue: "Task flagged for attention: " + task.title + (task.description ? " — " + task.description : ""),
     whatIsNeededFromDirector: "Review and respond.",
@@ -1742,7 +1743,9 @@ function createFeedbackEmailTask(delivery) {
 // surfaces it under Incoming so nobody has to re-enter it as a delivery by
 // hand. Guarded against firing twice for the same purchase.
 function hasIncomingDeliveryForPurchase(purchaseId) {
-  return (loadCache().deliveries || []).some(d => d.direction === "Incoming" && d.notes && d.notes.includes(purchaseId));
+  // relatedPurchase is the real link; the notes-substring check is only a
+  // fallback for deliveries auto-created before that field existed.
+  return (loadCache().deliveries || []).some(d => d.direction === "Incoming" && (d.relatedPurchase === purchaseId || (d.notes && d.notes.includes(purchaseId))));
 }
 function createIncomingDeliveryForPurchase(purchase) {
   const now = new Date().toISOString();
@@ -1761,6 +1764,7 @@ function createIncomingDeliveryForPurchase(purchase) {
     cost: purchase.amount || "",
     status: "Scheduled",
     notes: "Auto-created — purchase " + (purchase.purchaseId || "") + " (" + (purchase.item || "") + ") marked " + purchase.status + ".",
+    relatedPurchase: purchase.purchaseId || "",
     createdBy: currentWorker,
     createdDate: now,
     lastUpdated: now
@@ -1772,6 +1776,20 @@ function createIncomingDeliveryForPurchase(purchase) {
   renderDeliveries();
   renderDashboard();
   enqueue("createDelivery", fields);
+}
+// Automation: the other half of createIncomingDeliveryForPurchase() above —
+// once that delivery actually arrives, the purchase it was created for
+// should reflect that without anyone having to go patch it separately.
+// Never downgrades a purchase already past "Received" (e.g. Completed).
+function markPurchaseReceivedFromDelivery(delivery) {
+  if (!delivery.relatedPurchase) return;
+  const purchase = findRecord("purchase", delivery.relatedPurchase);
+  if (!purchase || purchase.status === "Received" || purchase.status === "Completed" || purchase.status === "Rejected") return;
+  const patch = { status: "Received", received: "Yes" };
+  applyLocalPatch("purchases", "purchaseId", purchase.purchaseId, patch);
+  enqueue("updatePurchase", { purchaseId: purchase.purchaseId, updatedBy: currentWorker, tier: currentTier, patch: patch });
+  renderPurchasing();
+  renderDashboard();
 }
 
 // Automation: a purchase marked Pending Approval goes straight to the
@@ -2129,6 +2147,23 @@ function findRecord(type, id) {
   const idKey = RECORD_ID_KEYS[type];
   return arr.find(r => r[idKey] === id);
 }
+// "Related Record" is free text almost everywhere it's entered (so someone
+// can jot "PROD-0004" or just describe it by hand) — but where an
+// automation stored a real ID in it, show what it actually is instead of
+// a bare code. Anything that doesn't resolve to a real record (including
+// hand-typed text) just displays as-is, unchanged.
+function describeRelatedRecord(value) {
+  if (!value) return value;
+  const task = findRecord("task", value);
+  if (task) return "Task — " + task.title;
+  const production = findRecord("production", value);
+  if (production) return "Production — " + production.product;
+  const delivery = findRecord("delivery", value);
+  if (delivery) return "Delivery — " + delivery.direction + (delivery.clientOrSupplier ? " · " + delivery.clientOrSupplier : "");
+  const purchase = findRecord("purchase", value);
+  if (purchase) return "Purchase — " + purchase.item;
+  return value;
+}
 // Finds the Inventory batch/plan a production reference points to.
 // Only `batches` — what Inventory has actually pushed to the employee
 // view. `plans` (Development Studio drafts) never surface in OC.
@@ -2205,17 +2240,17 @@ function buildRecordHtml(type, rec) {
   let html = '<button class="close" id="recordCloseBtn">Close ✕</button>';
   if (type === "task") {
     html += `<h3>${escapeHtml(rec.title)}</h3>`;
-    html += kv("Category", rec.category) + kv("Priority", rec.priority) + kv("Assigned To", rec.assignedTo || "Unassigned") + kv("Due", fmtDate(rec.dueDate)) + kv("Related Record", rec.relatedRecord) + kv("Description", rec.description) + kv("Notes", rec.notes);
+    html += kv("Category", rec.category) + kv("Priority", rec.priority) + kv("Assigned To", rec.assignedTo || "Unassigned") + kv("Due", fmtDate(rec.dueDate)) + kv("Related Record", describeRelatedRecord(rec.relatedRecord)) + kv("Description", rec.description) + kv("Notes", rec.notes);
     html += `<label>Status</label><select id="editStatus">${["Not Started", "In Progress", "Waiting", "Blocked", "Completed", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update Task</button>`;
   } else if (type === "event") {
     html += `<h3>${escapeHtml(rec.title)}</h3>`;
-    html += kv("Date", fmtDate(rec.date)) + kv("Time", (rec.startTime || "") + (rec.endTime ? " – " + rec.endTime : "")) + kv("Type", rec.eventType) + kv("Owner", rec.owner) + kv("Location", rec.location) + kv("Related Record", rec.relatedRecord) + kv("Notes", rec.notes);
+    html += kv("Date", fmtDate(rec.date)) + kv("Time", (rec.startTime || "") + (rec.endTime ? " – " + rec.endTime : "")) + kv("Type", rec.eventType) + kv("Owner", rec.owner) + kv("Location", rec.location) + kv("Related Record", describeRelatedRecord(rec.relatedRecord)) + kv("Notes", rec.notes);
     html += `<label>Status</label><select id="editStatus">${["Scheduled", "Completed", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update Event</button>`;
   } else if (type === "attention") {
     html += `<h3>${escapeHtml(rec.category || "Director Attention")}</h3>`;
-    html += kv("Issue", rec.issue) + kv("Needed From Director", rec.whatIsNeededFromDirector) + kv("Missing Info", rec.missingInformation) + kv("Priority", rec.priority) + kv("Deadline", fmtDate(rec.deadline)) + kv("Flagged By", rec.flaggedBy) + kv("Date Flagged", fmtDate(rec.dateFlagged)) + kv("Related Record", rec.relatedRecord) + kv("Status", rec.status) + kv("Director Response", rec.directorResponse);
+    html += kv("Issue", rec.issue) + kv("Needed From Director", rec.whatIsNeededFromDirector) + kv("Missing Info", rec.missingInformation) + kv("Priority", rec.priority) + kv("Deadline", fmtDate(rec.deadline)) + kv("Flagged By", rec.flaggedBy) + kv("Date Flagged", fmtDate(rec.dateFlagged)) + kv("Related Record", describeRelatedRecord(rec.relatedRecord)) + kv("Status", rec.status) + kv("Director Response", rec.directorResponse);
     if (currentTier === "Manager") {
       html += `<div class="manager-only"><div class="mo-label">Manager Response</div>`;
       html += `<label>Response</label><textarea id="editResponse" placeholder="Your decision / instruction">${escapeHtml(rec.directorResponse || "")}</textarea>`;
@@ -2224,7 +2259,7 @@ function buildRecordHtml(type, rec) {
     }
   } else if (type === "communication") {
     html += `<h3>${escapeHtml(rec.type)}</h3>`;
-    html += kv("Message", rec.message) + kv("Sender", rec.sender) + kv("Recipient", rec.recipient) + kv("Action Required", rec.actionRequired) + kv("Follow-up", fmtDate(rec.followUpDate)) + kv("Related Record", rec.relatedRecord);
+    html += kv("Message", rec.message) + kv("Sender", rec.sender) + kv("Recipient", rec.recipient) + kv("Action Required", rec.actionRequired) + kv("Follow-up", fmtDate(rec.followUpDate)) + kv("Related Record", describeRelatedRecord(rec.relatedRecord));
     html += `<label>Status</label><select id="editStatus">${["Open", "Resolved"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update</button>`;
   } else if (type === "production") {
@@ -2317,6 +2352,19 @@ function wireRecordModal(type, rec) {
       applyLocalPatch("directorAttention", "attentionId", rec.attentionId, patch);
       enqueue("respondDirectorAttention", { attentionId: rec.attentionId, respondedBy: currentWorker, newStatus: newStatus, directorResponse: patch.directorResponse });
       renderDirectorAttention(); renderDashboard();
+      // Automation: this is the same queue flagDirectorForPurchaseApproval()
+      // sends a purchase to — responding here IS the approval, so the
+      // purchase should move with it instead of also needing the separate
+      // "Approve Purchase" button pressed back on the Purchasing screen.
+      if (rec.category === "Purchasing" && rec.relatedRecord && (newStatus === "Approved" || newStatus === "Rejected")) {
+        const linkedPurchase = findRecord("purchase", rec.relatedRecord);
+        if (linkedPurchase && linkedPurchase.status === "Pending Approval") {
+          const purchasePatch = { status: newStatus };
+          applyLocalPatch("purchases", "purchaseId", linkedPurchase.purchaseId, purchasePatch);
+          enqueue("updatePurchase", { purchaseId: linkedPurchase.purchaseId, updatedBy: currentWorker, tier: currentTier, patch: purchasePatch });
+          renderPurchasing();
+        }
+      }
     } else if (type === "communication") {
       const patch = { status: newStatus };
       applyLocalPatch("communications", "communicationId", rec.communicationId, patch);
@@ -2343,12 +2391,22 @@ function wireRecordModal(type, rec) {
       const pifCheckbox = document.getElementById("editPifEmailed");
       const patch = pifCheckbox ? { status: newStatus, pifEmailed: pifCheckbox.checked ? "Yes" : "No" } : { status: newStatus };
       const justDelivered = rec.direction === "Outgoing" && rec.status !== "Delivered" && newStatus === "Delivered";
+      const justReceived = rec.direction === "Incoming" && rec.status !== "Delivered" && newStatus === "Delivered";
       applyLocalPatch("deliveries", "deliveryId", rec.deliveryId, patch);
       enqueue("updateDelivery", { deliveryId: rec.deliveryId, updatedBy: currentWorker, patch: patch });
       renderDeliveries(); renderDashboard();
       if (justDelivered) createFeedbackEmailTask(Object.assign({}, rec, patch));
+      if (justReceived) markPurchaseReceivedFromDelivery(Object.assign({}, rec, patch));
     } else if (type === "purchase") {
       const patch = { status: newStatus, ordered: document.getElementById("editOrdered").value, paid: document.getElementById("editPaid").value };
+      // Status "Received"/"Completed" IS the fact the Received flag records —
+      // this keeps the two from silently disagreeing when someone updates
+      // status by hand instead of through the incoming-delivery automation
+      // above. Ordered/Paid stay manual: unlike Received, whether money has
+      // actually changed hands doesn't always track the status label (e.g.
+      // pay-on-delivery), so guessing that one from status could put a
+      // wrong "Paid: Yes" on a real purchase.
+      if ((newStatus === "Received" || newStatus === "Completed") && rec.received !== "Yes") patch.received = "Yes";
       const statusChangedTo = (target) => rec.status !== target && newStatus === target;
       // Ordered and Awaiting Supplier both mean "this is now incoming" — a
       // purchase can hit either first depending on how it's tracked, but
