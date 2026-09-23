@@ -92,6 +92,24 @@ function headerToKey(header) {
     .join("");
 }
 
+// Columns that hold a plain calendar date (from an HTML <input type="date">
+// on the frontend, e.g. "2026-09-25") rather than a moment in time. Sheets
+// auto-recognizes a string like that on write and silently stores the cell
+// as a real Date — reading it back with .toISOString() then hands the
+// frontend a full UTC timestamp ("2026-09-24T22:00:00.000Z") that never
+// string-equals the plain date it originally wrote (and can even land on
+// the wrong calendar day once the spreadsheet's timezone shifts it), which
+// is exactly what broke every exact-match date comparison in Calendar and
+// Planner. Formatting only these columns back to "yyyy-MM-dd", in the
+// spreadsheet's own timezone, round-trips them exactly as written; every
+// other Date cell (created/updated timestamps) keeps the original full
+// ISO string.
+var DATE_ONLY_KEYS = {
+  dueDate: true, completedDate: true, date: true, deadline: true,
+  followUpDate: true, plannedDate: true, actualProductionDate: true,
+  deliveryDate: true, expectedArrival: true
+};
+
 function getAllRows(name) {
   var sheet = ensureSheet(name);
   var lastRow = sheet.getLastRow();
@@ -100,11 +118,16 @@ function getAllRows(name) {
   var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var keys = headers.map(headerToKey);
   var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var tz = getSpreadsheet().getSpreadsheetTimeZone();
   return values.map(function (row) {
     var obj = {};
     keys.forEach(function (key, i) {
       var v = row[i];
-      obj[key] = (v instanceof Date) ? v.toISOString() : v;
+      if (v instanceof Date) {
+        obj[key] = DATE_ONLY_KEYS[key] ? Utilities.formatDate(v, tz, "yyyy-MM-dd") : v.toISOString();
+      } else {
+        obj[key] = v;
+      }
     });
     return obj;
   });
