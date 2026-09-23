@@ -56,6 +56,21 @@ function ensureSheet(name) {
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(headers);
     sheet.setFrozenRows(1);
+    return sheet;
+  }
+  // SCHEMA can grow over time (new fields added to this file after a sheet
+  // already has real rows in it). A sheet's own header row is never
+  // rewritten retroactively, so without this, any column SCHEMA has that
+  // the sheet doesn't would make updateRecord()/appendRow() silently no-op
+  // on that field forever (they only ever write a column they can find by
+  // header name) — the exact bug that lost every Post-Production/PIF edit
+  // on existing Production rows. Bridge the gap by appending just the
+  // missing headers at the end of row 1; this never touches an existing
+  // column or any existing row's data.
+  var existingLastCol = sheet.getLastColumn();
+  if (existingLastCol < headers.length) {
+    var missing = headers.slice(existingLastCol);
+    sheet.getRange(1, existingLastCol + 1, 1, missing.length).setValues([missing]);
   }
   return sheet;
 }

@@ -577,7 +577,7 @@
         <div><label>Box Status</label><select id="delBoxStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
       </div>
       <div class="outgoing-only">
-        <label class="check-row"><input type="checkbox" id="delPifEmailed"> Product Information File emailed to client</label>
+        <label class="check-row"><input type="checkbox" id="delPifEmailed"> Product Information Documentation (PID) emailed to client</label>
       </div>
       <label>Notes</label><textarea id="delNotes" placeholder="Optional"></textarea>
       <button class="btn primary" id="saveDeliveryBtn">Save Delivery</button>
@@ -2246,9 +2246,9 @@ function buildRecordHtml(type, rec) {
     html += `<div><label>Unit Weight</label><input id="editUnitWeight" value="${escapeHtml(rec.unitWeight || "")}"></div>`;
     html += `<div><label>Actual Production Date</label><input type="date" id="editActualProductionDate" value="${escapeHtml(rec.actualProductionDate || "")}"></div>`;
     html += `</div></div>`;
-    html += `<div class="info-box"><div class="ib-label">Product Information File (PIF)</div>`;
-    html += `<label>PIF Status</label><select id="editPifStatus">${["Not Started", "In Progress", "Completed"].map(s => `<option ${s === rec.pifStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
-    html += `<label>PIF Link</label><input id="editPifLink" value="${escapeHtml(rec.pifLink || "")}" placeholder="Link to the PIF doc (optional)"></div>`;
+    html += `<div class="info-box"><div class="ib-label">Product Information Documentation (PID)</div>`;
+    html += `<label>PID Status</label><select id="editPifStatus">${["Not Started", "In Progress", "Completed"].map(s => `<option ${s === rec.pifStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<label>PID Link</label><input id="editPifLink" value="${escapeHtml(rec.pifLink || "")}" placeholder="Link to the PID doc (optional)"></div>`;
     html += `<div class="info-box"><div class="ib-label">Post-Production Summary</div>` +
       kv("Product", rec.product) + kv("Batch Size", rec.batchSize) +
       kv("Packaging", [rec.packagingType, rec.packagingSize].filter(Boolean).join(" · ")) +
@@ -2266,12 +2266,12 @@ function buildRecordHtml(type, rec) {
     html += kv("Items", rec.items) + kv("Delivery Date", fmtDate(rec.deliveryDate)) + kv("Expected Time", rec.expectedTime) + kv("Contact", rec.contact);
     if (isOutgoing) {
       const linkedProduction = rec.relatedProduction ? findRecord("production", rec.relatedProduction) : null;
-      html += kv("Related Production", linkedProduction ? linkedProduction.product : "") + kv("Packaging", rec.packagingStatus) + kv("Label", rec.labelStatus) + kv("Box", rec.boxStatus) + kv("PIF Emailed", rec.pifEmailed);
+      html += kv("Related Production", linkedProduction ? linkedProduction.product : "") + kv("Packaging", rec.packagingStatus) + kv("Label", rec.labelStatus) + kv("Box", rec.boxStatus) + kv("PID Emailed", rec.pifEmailed);
     }
     html += kv("Payment Status", rec.paymentStatus) + kv("Cost", fmtNum(rec.cost)) + kv("Client Confirmed", rec.clientConfirmation) + kv("Notes", rec.notes);
     html += `<label>Status</label><select id="editStatus">${["Scheduled", "Packed", "Dispatched", "Delivered", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     if (isOutgoing) {
-      html += `<label class="check-row"><input type="checkbox" id="editPifEmailed" ${rec.pifEmailed === "Yes" ? "checked" : ""}> Product Information File emailed to client</label>`;
+      html += `<label class="check-row"><input type="checkbox" id="editPifEmailed" ${rec.pifEmailed === "Yes" ? "checked" : ""}> Product Information Documentation (PID) emailed to client</label>`;
     }
     html += `<button class="btn primary" id="recordSaveBtn">Update Delivery</button>`;
   } else if (type === "purchase") {
