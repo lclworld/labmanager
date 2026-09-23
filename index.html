@@ -1472,6 +1472,61 @@ function computeInitialProductionStatus(fields) {
   const notPrepared = fields.batchSheetStatus === "Not Prepared" || fields.sopStatus === "Not Available";
   return (missing || notPrepared) ? "BLOCKED" : "READY";
 }
+// A specific, readable list of exactly what's missing — used both for the
+// record's own blocker banner and for what the Director sees when
+// pageDirectorForBlockedProduction() flags it, instead of a generic
+// "something's not ready".
+function describeMissingReadiness(fields) {
+  const missing = [];
+  if (fields.packagingReadiness === "Missing") missing.push("packaging");
+  if (fields.labelReadiness === "Missing") missing.push("labels");
+  if (fields.boxReadiness === "Missing") missing.push("boxes");
+  if (fields.batchSheetStatus === "Not Prepared") missing.push("batch sheet");
+  if (fields.sopStatus === "Not Available") missing.push("SOP");
+  return missing.length ? "Missing: " + missing.join(", ") + "." : "";
+}
+// Automation ("Page Director"): the moment a production record becomes
+// BLOCKED — at creation or from an edit — it lands in the Director
+// Attention queue on its own. Guarded so a production that's still
+// blocked the next time it's saved doesn't get paged a second time.
+function pageDirectorForBlockedProduction(rec) {
+  const alreadyOpen = (loadCache().directorAttention || []).some(a => a.relatedRecord === rec.productionId && a.status === "Open");
+  if (alreadyOpen) return;
+  const now = new Date().toISOString();
+  const fields = {
+    relatedRecord: rec.productionId || "",
+    category: "Production",
+    issue: "Production blocked: " + (rec.product || "") + (rec.client ? " for " + rec.client : "") + ". " + describeMissingReadiness(rec),
+    whatIsNeededFromDirector: "Review and advise — approve a substitution/delay, or the Manager can override once you're aware.",
+    missingInformation: "",
+    flaggedBy: currentWorker,
+    dateFlagged: now,
+    priority: "High",
+    deadline: rec.plannedDate || "",
+    status: "Open",
+    directorResponse: "",
+    dateResolved: ""
+  };
+  const cache = loadCache();
+  cache.directorAttention = cache.directorAttention || [];
+  cache.directorAttention.unshift(Object.assign({ attentionId: "ATT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDirectorAttention();
+  renderDashboard();
+  enqueue("flagDirectorAttention", fields);
+}
+// The other half: once a paged production is no longer blocked (readiness
+// fixed, or a Manager override), close out its attention item on its own
+// instead of leaving an open queue entry for a problem that's already gone.
+function resolveDirectorAttentionForProduction(productionId, note) {
+  const openItem = (loadCache().directorAttention || []).find(a => a.relatedRecord === productionId && a.status === "Open");
+  if (!openItem) return;
+  const patch = { status: "Resolved", directorResponse: note || "Auto-resolved — production no longer blocked." };
+  applyLocalPatch("directorAttention", "attentionId", openItem.attentionId, patch);
+  enqueue("respondDirectorAttention", { attentionId: openItem.attentionId, respondedBy: currentWorker, newStatus: patch.status, directorResponse: patch.directorResponse });
+  renderDirectorAttention();
+  renderDashboard();
+}
 document.getElementById("newProductionBtn").addEventListener("click", () => {
   const form = document.getElementById("productionForm");
   form.style.display = form.style.display === "none" ? "block" : "none";
@@ -1504,11 +1559,12 @@ document.getElementById("saveProductionBtn").addEventListener("click", () => {
   };
   fields.productionStatus = computeInitialProductionStatus(fields);
   if (fields.productionStatus === "BLOCKED") {
-    fields.blocker = "Auto-flagged at creation: packaging/label/box, batch sheet, or SOP not ready.";
+    fields.blocker = describeMissingReadiness(fields);
   }
   const cache = loadCache();
   cache.production = cache.production || [];
-  cache.production.unshift(Object.assign({ productionId: "PROD-pending-" + Date.now(), pending: true }, fields));
+  const localProduction = Object.assign({ productionId: "PROD-pending-" + Date.now(), pending: true }, fields);
+  cache.production.unshift(localProduction);
   saveCache(cache);
   renderProduction();
   renderDashboard();
@@ -1516,6 +1572,7 @@ document.getElementById("saveProductionBtn").addEventListener("click", () => {
   document.getElementById("productionForm").style.display = "none";
   document.getElementById("prodInventoryRefHint").innerHTML = "";
   enqueue("createProduction", fields);
+  if (localProduction.productionStatus === "BLOCKED") pageDirectorForBlockedProduction(localProduction);
 });
 let productionFilterStatus = "all";
 document.getElementById("productionFilter").addEventListener("click", (e) => {
@@ -2264,10 +2321,17 @@ function buildRecordHtml(type, rec) {
     html += `<button class="btn primary" id="recordSaveBtn">Update</button>`;
   } else if (type === "production") {
     html += `<h3>${escapeHtml(rec.product)}</h3>`;
-    html += kv("Client", rec.client) + kv("Batch Size", rec.batchSize) + kv("Planned Date", fmtDate(rec.plannedDate)) + kv("Assigned Staff", rec.assignedStaff) + kv("Inventory Reference", rec.inventoryReference);
-    html += kv("Packaging", rec.packagingReadiness) + kv("Label", rec.labelReadiness) + kv("Box", rec.boxReadiness) + kv("Batch Sheet", rec.batchSheetStatus) + kv("SOP", rec.sopStatus) + kv("Notes", rec.notes);
+    html += kv("Client", rec.client) + kv("Batch Size", rec.batchSize) + kv("Planned Date", fmtDate(rec.plannedDate)) + kv("Assigned Staff", rec.assignedStaff) + kv("Inventory Reference", rec.inventoryReference) + kv("Notes", rec.notes);
     if (rec.blocker) html += `<div class="blocker-banner">⚠ ${escapeHtml(rec.blocker)}</div>`;
     html += buildProductionSheetHtml(rec.inventoryReference);
+    html += `<div class="info-box"><div class="ib-label">Packaging, Label, Box &amp; Paperwork Readiness</div>`;
+    html += `<div class="form-grid">`;
+    html += `<div><label>Packaging</label><select id="editPackagingReadiness">${["Ready", "Missing", "N/A"].map(s => `<option ${s === rec.packagingReadiness ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+    html += `<div><label>Label</label><select id="editLabelReadiness">${["Ready", "Missing", "N/A"].map(s => `<option ${s === rec.labelReadiness ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+    html += `<div><label>Box</label><select id="editBoxReadiness">${["Ready", "Missing", "N/A"].map(s => `<option ${s === rec.boxReadiness ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+    html += `<div><label>Batch Sheet</label><select id="editBatchSheetStatus">${["Prepared", "Not Prepared"].map(s => `<option ${s === rec.batchSheetStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+    html += `<div><label>SOP</label><select id="editSopStatus">${["Available", "Not Available"].map(s => `<option ${s === rec.sopStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+    html += `</div><div class="hint" style="margin-top:8px;">Fixing the last missing item here and saving (with Overall Status left on READY or BLOCKED) moves this back to READY on its own — and closes out the Director Attention item this may have paged.</div></div>`;
     html += `<label>Overall Status</label><select id="editStatus">${["READY", "BLOCKED", "WAITING FOR DIRECTOR", "WAITING FOR PURCHASE", "IN PRODUCTION", "QC", "COMPLETED"].map(s => `<option ${s === rec.productionStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<div class="info-box"><div class="ib-label">QC &amp; Filling</div>`;
     html += `<label>QC Status</label><select id="editQcStatus">${["Not Started", "In Progress", "Passed", "Failed"].map(s => `<option ${s === rec.qcStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
@@ -2371,8 +2435,22 @@ function wireRecordModal(type, rec) {
       enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: patch });
       renderCommunications();
     } else if (type === "production") {
-      const patch = {
-        productionStatus: newStatus,
+      const readiness = {
+        packagingReadiness: document.getElementById("editPackagingReadiness").value,
+        labelReadiness: document.getElementById("editLabelReadiness").value,
+        boxReadiness: document.getElementById("editBoxReadiness").value,
+        batchSheetStatus: document.getElementById("editBatchSheetStatus").value,
+        sopStatus: document.getElementById("editSopStatus").value
+      };
+      // Overall Status is only auto-corrected while it's still sitting at
+      // the initial READY/BLOCKED gate — a deliberate later stage (IN
+      // PRODUCTION, QC, COMPLETED, ...) is never silently overwritten just
+      // because a readiness field changed.
+      const readinessStatus = computeInitialProductionStatus(readiness);
+      const finalStatus = (newStatus === "READY" || newStatus === "BLOCKED") ? readinessStatus : newStatus;
+      const patch = Object.assign({}, readiness, {
+        productionStatus: finalStatus,
+        blocker: finalStatus === "BLOCKED" ? describeMissingReadiness(readiness) : "",
         qcStatus: document.getElementById("editQcStatus").value,
         fillingStatus: document.getElementById("editFillingStatus").value,
         directorReviewStatus: document.getElementById("editDirectorReviewStatus").value,
@@ -2383,10 +2461,13 @@ function wireRecordModal(type, rec) {
         actualProductionDate: document.getElementById("editActualProductionDate").value,
         pifStatus: document.getElementById("editPifStatus").value,
         pifLink: document.getElementById("editPifLink").value.trim()
-      };
+      });
+      const wasBlocked = rec.productionStatus === "BLOCKED";
       applyLocalPatch("production", "productionId", rec.productionId, patch);
       enqueue("updateProduction", { productionId: rec.productionId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderProduction(); renderDashboard();
+      if (!wasBlocked && finalStatus === "BLOCKED") pageDirectorForBlockedProduction(Object.assign({}, rec, patch));
+      if (wasBlocked && finalStatus !== "BLOCKED") resolveDirectorAttentionForProduction(rec.productionId);
     } else if (type === "delivery") {
       const pifCheckbox = document.getElementById("editPifEmailed");
       const patch = pifCheckbox ? { status: newStatus, pifEmailed: pifCheckbox.checked ? "Yes" : "No" } : { status: newStatus };
@@ -2430,6 +2511,7 @@ function wireRecordModal(type, rec) {
       applyLocalPatch("production", "productionId", rec.productionId, patch);
       enqueue("updateProduction", { productionId: rec.productionId, updatedBy: currentWorker, tier: currentTier, patch: patch, blockerOverride: true });
       renderProduction(); renderDashboard();
+      resolveDirectorAttentionForProduction(rec.productionId, "Auto-resolved — Manager overrode the blocker and proceeded.");
       closeRecordModal();
     });
   }
