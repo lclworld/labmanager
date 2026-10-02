@@ -285,6 +285,17 @@
       <a class="btn dark" href="https://lclworld.github.io/lcl-tools/inventory/" target="_blank" rel="noopener noreferrer">Open ↗</a>
     </div>
 
+    <!-- On a phone, the sidebar never shows (it's desktop-only, >=1080px) and
+         the tab bar only fits 5 slots — without a card here, Communications
+         and History & Search had no way to be reached on mobile at all. -->
+    <div class="stat-row">
+      <div class="stat" data-nav-screen="history">
+        <div class="stat-head"><div class="lbl">Search Everything</div></div>
+        <div class="num">🔍</div>
+        <div class="hint">Records &amp; activity log across OC</div>
+      </div>
+    </div>
+
     <h3 class="section-title">Production</h3>
     <div class="stat-row">
       <div class="stat" data-nav-screen="production">
@@ -314,6 +325,15 @@
         <div class="stat-head"><div class="lbl">Open Purchases</div></div>
         <div class="num" id="statPurchases">—</div>
         <div class="hint" id="purchasingHint">— pending · — awaiting payment · — awaiting supplier</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Communications</h3>
+    <div class="stat-row">
+      <div class="stat" data-nav-screen="communications">
+        <div class="stat-head"><div class="lbl">Open</div></div>
+        <div class="num" id="statCommunications">—</div>
+        <div class="hint" id="communicationsHint">— need follow-up</div>
       </div>
     </div>
 
@@ -929,6 +949,16 @@ function renderDashboard() {
   const awaitingSupplier = openPurchases.filter(p => p.status === "Awaiting Supplier").length;
   const purHint = document.getElementById("purchasingHint");
   if (purHint) purHint.textContent = pending + " pending · " + awaitingPayment + " awaiting payment · " + awaitingSupplier + " awaiting supplier";
+
+  const communications = (cache.communications || []).filter(c => c.archived !== "Yes");
+  const openComms = communications.filter(c => c.status === "Open");
+  set("statCommunications", openComms.length);
+  const commsHint = document.getElementById("communicationsHint");
+  if (commsHint) {
+    const needFollowUp = openComms.filter(c => c.followUpDate).length;
+    const actionRequired = openComms.filter(c => c.actionRequired === "Yes").length;
+    commsHint.textContent = needFollowUp + " need follow-up · " + actionRequired + " action required";
+  }
 
   const attention = (cache.directorAttention || []).filter(a => a.archived !== "Yes");
   const outstanding = attention.filter(a => a.status === "Open");
