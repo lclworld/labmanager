@@ -204,7 +204,7 @@
     <div class="nav-item active" data-screen="dashboard">Command Center</div>
     <div class="nav-item" data-screen="calendar">Calendar</div>
     <div class="nav-item" data-screen="tasks">Tasks</div>
-    <div class="nav-item" data-screen="directorAttention">Director Attention</div>
+    <div class="nav-item" data-screen="directorAttention">Manager Attention</div>
     <div class="nav-item" data-screen="communications">Communications</div>
     <div class="nav-item" data-screen="production">Production</div>
     <div class="nav-item" data-screen="deliveries">Deliveries</div>
@@ -212,7 +212,7 @@
     <div class="nav-divider"></div>
     <div class="nav-item" data-screen="history">History &amp; Search</div>
     <div class="nav-divider"></div>
-    <div class="nav-item admin-item" data-screen="adminGate" id="adminNavItem">Admin</div>
+    <div class="nav-item admin-item" data-screen="adminGate" id="adminNavItem">Manager</div>
     <div class="sync-status" id="syncStatusSidebar"></div>
   </div>
 
@@ -247,8 +247,8 @@
   <div class="screen" id="adminGate">
     <div class="pin-screen">
       <div class="mark">L</div>
-      <div class="word">Admin</div>
-      <div class="sub">Enter Admin PIN to unlock Manager tier</div>
+      <div class="word">Manager</div>
+      <div class="sub">Enter Manager PIN to continue</div>
       <div class="pin-dots" id="adminPinDots"><span></span><span></span><span></span><span></span></div>
       <div class="pin-pad" id="adminPinPad">
         <button data-n="1">1</button><button data-n="2">2</button><button data-n="3">3</button>
@@ -337,7 +337,7 @@
       </div>
     </div>
 
-    <h3 class="section-title">Director Attention</h3>
+    <h3 class="section-title">Manager Attention</h3>
     <div class="stat-row">
       <div class="stat warn" data-nav-screen="directorAttention">
         <div class="stat-head"><div class="lbl">Outstanding</div></div>
@@ -386,7 +386,7 @@
         </div>
         <label>Related Record</label><input id="taskRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
         <label>Notes</label><textarea id="taskNotes" placeholder="Optional"></textarea>
-        <label class="check-row"><input type="checkbox" id="taskFlagDirector"> Flag for Director attention — also sends this to the Director Attention queue</label>
+        <label class="check-row"><input type="checkbox" id="taskFlagDirector"> Flag for Manager attention — also sends this to the Manager Attention queue</label>
         <button class="btn primary" id="saveTaskBtn">Save Task</button>
       </div>
       <div class="filter-row" id="taskFilter">
@@ -402,7 +402,7 @@
     </div>
 
     <div id="taskPlannerView" style="display:none;">
-      <div class="hint" style="margin:0 0 14px;">Everything with a date, grouped by when it's due — Tasks, Calendar, Production, Deliveries, Purchasing and Director Attention deadlines all pulled in automatically.</div>
+      <div class="hint" style="margin:0 0 14px;">Everything with a date, grouped by when it's due — Tasks, Calendar, Production, Deliveries, Purchasing and Manager Attention deadlines all pulled in automatically.</div>
       <div class="filter-row" id="plannerFilter">
         <button data-kind="all" class="active">All</button>
         <button data-kind="Task">Tasks</button>
@@ -410,7 +410,7 @@
         <button data-kind="Production">Production</button>
         <button data-kind="Delivery">Deliveries</button>
         <button data-kind="Purchase">Purchases</button>
-        <button data-kind="Director Attention">Director Attention</button>
+        <button data-kind="Manager Attention">Manager Attention</button>
       </div>
       <div id="plannerBody"></div>
     </div>
@@ -419,7 +419,7 @@
   <!-- CALENDAR -->
   <div class="screen" id="calendar">
     <h2 class="title">Calendar</h2>
-    <div class="hint" style="margin:-8px 0 14px;">Everything with a date, pulled in automatically — task due dates, production plans, deliveries, purchase arrivals, and Director Attention deadlines — nothing here needs entering twice.</div>
+    <div class="hint" style="margin:-8px 0 14px;">Everything with a date, pulled in automatically — task due dates, production plans, deliveries, purchase arrivals, and Manager Attention deadlines — nothing here needs entering twice.</div>
     <button class="btn primary" id="newEventBtn">+ New Event</button>
     <div class="card" id="eventForm" style="display:none;">
       <label>Title</label><input id="eventTitle" placeholder="Event title">
@@ -442,7 +442,7 @@
       <button data-kind="Production">Production</button>
       <button data-kind="Delivery">Deliveries</button>
       <button data-kind="Purchase">Purchases</button>
-      <button data-kind="Director Attention">Director Attention</button>
+      <button data-kind="Manager Attention">Manager Attention</button>
       <button data-kind="__archived__">Archived</button>
     </div>
 
@@ -462,20 +462,20 @@
 
   <!-- DIRECTOR ATTENTION -->
   <div class="screen" id="directorAttention">
-    <h2 class="title">Director Attention</h2>
-    <button class="btn primary" id="newAttentionBtn">Flag for Director</button>
+    <h2 class="title">Manager Attention</h2>
+    <button class="btn primary" id="newAttentionBtn">Flag for Manager</button>
     <div class="card" id="attentionForm" style="display:none;">
       <label>Related Record</label><input id="attnRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
       <label>Category</label>
       <select id="attnCategory"><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Client</option><option>Supplier</option><option>Finance</option><option>Other</option></select>
       <label>What happened, and what's already been done?</label><textarea id="attnIssue" placeholder="Describe the situation and any steps already taken"></textarea>
-      <label>What's needed from the Director?</label><textarea id="attnNeeded"></textarea>
+      <label>What's needed from the Manager?</label><textarea id="attnNeeded"></textarea>
       <label>What information is missing?</label><textarea id="attnMissing" placeholder="Optional"></textarea>
       <div class="form-grid">
         <div><label>Priority</label><select id="attnPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
         <div><label>Deadline</label><input type="date" id="attnDeadline"></div>
       </div>
-      <button class="btn primary" id="saveAttentionBtn">Send to Director</button>
+      <button class="btn primary" id="saveAttentionBtn">Send to Manager</button>
     </div>
     <div class="filter-row" id="attentionFilter">
       <button data-status="all" class="active">All</button>
@@ -497,7 +497,7 @@
         <option>Team Needs To Do</option>
         <option>Client Needs To Be Contacted</option>
         <option>Supplier Needs Follow-Up</option>
-        <option>Waiting For Director</option>
+        <option>Waiting For Manager</option>
         <option>Waiting For Client</option>
         <option>Waiting For Supplier</option>
       </select>
@@ -554,7 +554,7 @@
       <button data-status="all" class="active">All</button>
       <button data-status="READY">Ready</button>
       <button data-status="BLOCKED">Blocked</button>
-      <button data-status="WAITING FOR DIRECTOR">Waiting for Director</button>
+      <button data-status="WAITING FOR DIRECTOR">Waiting for Manager</button>
       <button data-status="WAITING FOR PURCHASE">Waiting for Purchase</button>
       <button data-status="IN PRODUCTION">In Production</button>
       <button data-status="QC">QC</button>
@@ -661,9 +661,9 @@
   <div class="tabbar" id="tabbar">
     <div class="tab active" data-screen="dashboard"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg></span>Home</div>
     <div class="tab" data-screen="tasks"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="9"/></svg></span>Tasks</div>
-    <div class="tab" data-screen="directorAttention"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg></span>Director</div>
+    <div class="tab" data-screen="directorAttention"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 9v4M12 17h.01" stroke-linecap="round"/><circle cx="12" cy="12" r="9"/></svg></span>Attention</div>
     <div class="tab" data-screen="calendar"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4" stroke-linecap="round"/></svg></span>Calendar</div>
-    <div class="tab admin-item" data-screen="adminGate" id="tabbarAdminItem"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke-linecap="round"/></svg></span><span id="tabbarAdminLabel">Admin</span></div>
+    <div class="tab admin-item" data-screen="adminGate" id="tabbarAdminItem"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke-linecap="round"/></svg></span><span id="tabbarAdminLabel">Manager</span></div>
   </div>
   </div>
 </div>
@@ -1168,7 +1168,7 @@ function collectAllDatedItems() {
     items.push({ kind: "Purchase", type: "purchase", id: p.purchaseId, title: p.item, date: p.expectedArrival || "", meta: (p.supplier || "") + " · Expected arrival", status: p.status, archived: p.archived === "Yes" });
   });
   (cache.directorAttention || []).forEach(a => {
-    items.push({ kind: "Director Attention", type: "attention", id: a.attentionId, title: (a.issue || "").slice(0, 60), date: a.deadline || "", meta: "Deadline · " + (a.priority || "Normal"), status: a.status, archived: a.archived === "Yes" });
+    items.push({ kind: "Manager Attention", type: "attention", id: a.attentionId, title: (a.issue || "").slice(0, 60), date: a.deadline || "", meta: "Deadline · " + (a.priority || "Normal"), status: a.status, archived: a.archived === "Yes" });
   });
   return items;
 }
@@ -1289,7 +1289,7 @@ function renderCalendar() {
   const cellsHtml = cells.map(c => {
     if (c.otherMonth) return `<div class="cal-day other-month"><span>${c.day}</span></div>`;
     const dayItems = itemsByDate[c.dateStr] || [];
-    const hasUrgent = dayItems.some(it => it.kind === "Director Attention" || (it.type === "task" && isTaskOverdue({ dueDate: it.date, status: it.status })));
+    const hasUrgent = dayItems.some(it => it.kind === "Manager Attention" || (it.type === "task" && isTaskOverdue({ dueDate: it.date, status: it.status })));
     const classes = ["cal-day"];
     if (c.dateStr === today) classes.push("today");
     if (c.dateStr === calSelectedDate) classes.push("selected");
@@ -2015,7 +2015,7 @@ function computeNotifications() {
   const notArchived = r => r.archived !== "Yes";
 
   (cache.directorAttention || []).filter(a => a.status === "Open" && notArchived(a)).forEach(a =>
-    alerts.push({ kind: "Director Attention", screen: "directorAttention", type: "attention", id: a.attentionId, text: (a.issue || "").slice(0, 70), severity: (a.priority === "Urgent" || a.priority === "High") ? 3 : 2 }));
+    alerts.push({ kind: "Manager Attention", screen: "directorAttention", type: "attention", id: a.attentionId, text: (a.issue || "").slice(0, 70), severity: (a.priority === "Urgent" || a.priority === "High") ? 3 : 2 }));
 
   (cache.production || []).filter(p => p.productionStatus === "BLOCKED" && notArchived(p)).forEach(p =>
     alerts.push({ kind: "Production Blocked", screen: "production", type: "production", id: p.productionId, text: p.product + (p.client ? " — " + p.client : ""), severity: 3 }));
@@ -2336,8 +2336,8 @@ function buildRecordHtml(type, rec) {
     html += `<label>Status</label><select id="editStatus">${["Scheduled", "Completed", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<button class="btn primary" id="recordSaveBtn">Update Event</button>`;
   } else if (type === "attention") {
-    html += `<h3>${escapeHtml(rec.category || "Director Attention")}</h3>`;
-    html += kv("Issue", rec.issue) + kv("Needed From Director", rec.whatIsNeededFromDirector) + kv("Missing Info", rec.missingInformation) + kv("Priority", rec.priority) + kv("Deadline", fmtDate(rec.deadline)) + kv("Flagged By", rec.flaggedBy) + kv("Date Flagged", fmtDate(rec.dateFlagged)) + kv("Related Record", describeRelatedRecord(rec.relatedRecord)) + kv("Status", rec.status) + kv("Director Response", rec.directorResponse);
+    html += `<h3>${escapeHtml(rec.category || "Manager Attention")}</h3>`;
+    html += kv("Issue", rec.issue) + kv("Needed From Manager", rec.whatIsNeededFromDirector) + kv("Missing Info", rec.missingInformation) + kv("Priority", rec.priority) + kv("Deadline", fmtDate(rec.deadline)) + kv("Flagged By", rec.flaggedBy) + kv("Date Flagged", fmtDate(rec.dateFlagged)) + kv("Related Record", describeRelatedRecord(rec.relatedRecord)) + kv("Status", rec.status) + kv("Manager Response", rec.directorResponse);
     if (currentTier === "Manager") {
       html += `<div class="manager-only"><div class="mo-label">Manager Response</div>`;
       html += `<label>Response</label><textarea id="editResponse" placeholder="Your decision / instruction">${escapeHtml(rec.directorResponse || "")}</textarea>`;
@@ -2361,12 +2361,12 @@ function buildRecordHtml(type, rec) {
     html += `<div><label>Box</label><select id="editBoxReadiness">${["Ready", "Missing", "N/A"].map(s => `<option ${s === rec.boxReadiness ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
     html += `<div><label>Batch Sheet</label><select id="editBatchSheetStatus">${["Prepared", "Not Prepared"].map(s => `<option ${s === rec.batchSheetStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
     html += `<div><label>SOP</label><select id="editSopStatus">${["Available", "Not Available"].map(s => `<option ${s === rec.sopStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
-    html += `</div><div class="hint" style="margin-top:8px;">Fixing the last missing item here and saving (with Overall Status left on READY or BLOCKED) moves this back to READY on its own — and closes out the Director Attention item this may have paged.</div></div>`;
-    html += `<label>Overall Status</label><select id="editStatus">${["READY", "BLOCKED", "WAITING FOR DIRECTOR", "WAITING FOR PURCHASE", "IN PRODUCTION", "QC", "COMPLETED"].map(s => `<option ${s === rec.productionStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `</div><div class="hint" style="margin-top:8px;">Fixing the last missing item here and saving (with Overall Status left on READY or BLOCKED) moves this back to READY on its own — and closes out the Manager Attention item this may have paged.</div></div>`;
+    html += `<label>Overall Status</label><select id="editStatus">${["READY", "BLOCKED", "WAITING FOR DIRECTOR", "WAITING FOR PURCHASE", "IN PRODUCTION", "QC", "COMPLETED"].map(s => `<option value="${s}" ${s === rec.productionStatus ? "selected" : ""}>${s === "WAITING FOR DIRECTOR" ? "WAITING FOR MANAGER" : s}</option>`).join("")}</select>`;
     html += `<div class="info-box"><div class="ib-label">QC &amp; Filling</div>`;
     html += `<label>QC Status</label><select id="editQcStatus">${["Not Started", "In Progress", "Passed", "Failed"].map(s => `<option ${s === rec.qcStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     html += `<label>Filling Status</label><select id="editFillingStatus">${["Not Started", "In Progress", "Completed"].map(s => `<option ${s === rec.fillingStatus ? "selected" : ""}>${s}</option>`).join("")}</select>`;
-    html += `<label>Director Review</label><select id="editDirectorReviewStatus">${["Not Reviewed", "Reviewed", "Needs Changes"].map(s => `<option ${s === rec.directorReviewStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
+    html += `<label>Manager Review</label><select id="editDirectorReviewStatus">${["Not Reviewed", "Reviewed", "Needs Changes"].map(s => `<option ${s === rec.directorReviewStatus ? "selected" : ""}>${s}</option>`).join("")}</select></div>`;
     html += `<div class="info-box"><div class="ib-label">Post-Production — fill once, feeds the summary below</div>`;
     html += `<div class="form-grid">`;
     html += `<div><label>Packaging Type</label><input id="editPackagingType" value="${escapeHtml(rec.packagingType || "")}" placeholder="e.g. Amber bottle"></div>`;
@@ -2577,7 +2577,7 @@ function showScreen(name) {
   const label = document.getElementById("screenLabel");
   const navEl = document.querySelector('.sidebar .nav-item[data-screen="' + name + '"]');
   if (label && navEl) label.textContent = navEl.textContent;
-  if (label && name === "adminGate") label.textContent = "Admin";
+  if (label && name === "adminGate") label.textContent = "Manager";
   if (name === "history") renderHistory();
 }
 
@@ -2593,6 +2593,19 @@ let appUnlocked = false;
 let currentWorker = "";
 let currentTier = "Employee";
 let enteredPin = "";
+// Set when the Manager PIN is entered straight at the first PIN screen
+// (see pressPinKey below) — startWorking() checks this to skip the old
+// two-step Employee-then-Admin-tab path and log straight into Manager tier.
+let pendingManagerLogin = false;
+
+// Shared by the direct Manager-PIN login below and the Admin tab's own PIN
+// gate (further down) — both end up at the same "now a Manager" state.
+function becomeManager() {
+  currentTier = "Manager";
+  document.getElementById("mgrBadge").style.display = "inline-block";
+  document.getElementById("adminNavItem").textContent = "Exit Manager";
+  document.getElementById("tabbarAdminLabel").textContent = "Exit";
+}
 
 function updatePinDots() {
   document.querySelectorAll("#pinDots span").forEach((d, i) => d.classList.toggle("filled", i < enteredPin.length));
@@ -2604,7 +2617,11 @@ function pressPinKey(key) {
   else if (enteredPin.length < 4) { enteredPin += key; }
   updatePinDots();
   if (enteredPin.length === 4) {
-    if (enteredPin === STAFF_PIN) {
+    if (enteredPin === STAFF_PIN || enteredPin === ADMIN_PIN) {
+      // Entering the Manager PIN here, instead of the Staff PIN, skips the
+      // old Employee-view-first-then-Admin-tab path entirely — Manager
+      // picks it up directly in startWorking() below.
+      pendingManagerLogin = (enteredPin === ADMIN_PIN);
       showScreen("workerPrompt");
       const last = localStorage.getItem(WORKER_KEY) || "";
       const input = document.getElementById("workerNameInput");
@@ -2634,6 +2651,7 @@ function startWorking() {
   document.getElementById("topbar").style.display = "flex";
   document.getElementById("appShell").classList.add("unlocked");
   appUnlocked = true;
+  if (pendingManagerLogin) { becomeManager(); pendingManagerLogin = false; }
   showScreen("dashboard");
   enqueue("logUser", { name: currentWorker, tier: currentTier });
   loadCache();
@@ -2660,10 +2678,7 @@ function pressAdminPinKey(key) {
   updateAdminPinDots();
   if (adminEnteredPin.length === 4) {
     if (adminEnteredPin === ADMIN_PIN) {
-      currentTier = "Manager";
-      document.getElementById("mgrBadge").style.display = "inline-block";
-      document.getElementById("adminNavItem").textContent = "Exit Admin";
-      document.getElementById("tabbarAdminLabel").textContent = "Exit";
+      becomeManager();
       adminEnteredPin = "";
       updateAdminPinDots();
       enqueue("logUser", { name: currentWorker, tier: currentTier });
@@ -2700,8 +2715,8 @@ document.addEventListener("keydown", (e) => {
 function exitAdminTier() {
   currentTier = "Employee";
   document.getElementById("mgrBadge").style.display = "none";
-  document.getElementById("adminNavItem").textContent = "Admin";
-  document.getElementById("tabbarAdminLabel").textContent = "Admin";
+  document.getElementById("adminNavItem").textContent = "Manager";
+  document.getElementById("tabbarAdminLabel").textContent = "Manager";
   renderDashboard();
   showScreen("dashboard");
 }
