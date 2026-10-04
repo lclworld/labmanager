@@ -357,7 +357,7 @@
     <h3 class="section-title">Calendar</h3>
     <div class="stat-row">
       <div class="stat" data-nav-screen="calendar">
-        <div class="stat-head"><div class="lbl">Upcoming Events</div></div>
+        <div class="stat-head"><div class="lbl">Coming Up</div></div>
         <div class="num" id="statCalendar">—</div>
         <div class="hint" id="calendarHint">— today</div>
       </div>
@@ -941,88 +941,111 @@ function fmtNum(v) {
 }
 
 // ---------- Command Center rendering ----------
+// Each card's footnote breaks its big number down into what you see when you
+// tap it: the parts add up to the total, zero parts are left out, and
+// anything overdue or due today is called out first.
+function countBy(items, keyFn, order) {
+  const counts = {};
+  items.forEach(it => { const k = keyFn(it); counts[k] = (counts[k] || 0) + 1; });
+  const keys = (order || []).filter(k => counts[k]).concat(Object.keys(counts).filter(k => !(order || []).includes(k)));
+  return keys.map(k => counts[k] + " " + k);
+}
+function footnote(parts, emptyText) {
+  const shown = parts.filter(Boolean);
+  return shown.length ? shown.join(" · ") : emptyText;
+}
+function nOf(n, label) { return n ? n + " " + label : ""; }
+function addDays(dateStr, n) { const d = new Date(dateStr + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+
 function renderDashboard() {
   const cache = loadCache();
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = (val === undefined || val === null) ? "—" : val; };
-
-  const production = (cache.production || []).filter(p => p.archived !== "Yes");
-  const activeProduction = production.filter(p => p.productionStatus !== "COMPLETED");
-  set("statProduction", activeProduction.length);
-  const planned = production.filter(p => p.productionStatus === "READY" || !p.productionStatus).length;
-  const ready = production.filter(p => p.productionStatus === "READY").length;
-  const blocked = production.filter(p => p.productionStatus === "BLOCKED").length;
-  const inProduction = production.filter(p => p.productionStatus === "IN PRODUCTION").length;
-  const prodHint = document.getElementById("productionHint");
-  if (prodHint) prodHint.textContent = planned + " planned · " + ready + " ready · " + blocked + " blocked · " + inProduction + " in production";
-
-  const deliveries = (cache.deliveries || []).filter(d => d.archived !== "Yes");
-  const incoming = deliveries.filter(d => d.direction === "Incoming");
-  const outgoing = deliveries.filter(d => d.direction === "Outgoing");
-  const incomingOpen = incoming.filter(d => d.status !== "Delivered" && d.status !== "Cancelled");
-  const outgoingOpen = outgoing.filter(d => d.status !== "Delivered" && d.status !== "Cancelled");
-  set("statIncoming", incomingOpen.length);
-  set("statOutgoing", outgoingOpen.length);
-  const incomingHint = document.getElementById("incomingHint");
-  if (incomingHint) incomingHint.textContent = incomingOpen.length + " outstanding";
-  const outgoingHint = document.getElementById("outgoingHint");
-  if (outgoingHint) {
-    const notReady = outgoingOpen.filter(d => d.packagingStatus === "Missing" || d.labelStatus === "Missing" || d.boxStatus === "Missing").length;
-    outgoingHint.textContent = notReady + " packaging not ready";
-  }
-
-  const purchases = (cache.purchases || []).filter(p => p.archived !== "Yes");
-  const openPurchases = purchases.filter(p => p.status !== "Completed" && p.status !== "Rejected");
-  set("statPurchases", openPurchases.length);
-  const pending = openPurchases.filter(p => p.status === "Need Identified" || p.status === "Pending Approval").length;
-  const awaitingPayment = openPurchases.filter(p => p.ordered === "Yes" && p.paid !== "Yes").length;
-  const awaitingSupplier = openPurchases.filter(p => p.status === "Awaiting Supplier").length;
-  const purHint = document.getElementById("purchasingHint");
-  if (purHint) purHint.textContent = pending + " pending · " + awaitingPayment + " awaiting payment · " + awaitingSupplier + " awaiting supplier";
-
-  const communications = (cache.communications || []).filter(c => c.archived !== "Yes");
-  const openComms = communications.filter(c => c.status === "Open");
-  set("statCommunications", openComms.length);
-  const commsHint = document.getElementById("communicationsHint");
-  if (commsHint) {
-    const needFollowUp = openComms.filter(c => c.followUpDate).length;
-    const needManager = openComms.filter(c => commNeedsManager(c.type)).length;
-    commsHint.textContent = needFollowUp + " need follow-up · " + needManager + " need Manager";
-  }
-
-  const attention = (cache.directorAttention || []).filter(a => a.archived !== "Yes");
-  const outstanding = attention.filter(a => a.status === "Open");
-  set("statDirectorAttention", outstanding.length);
-  const attnHint = document.getElementById("directorAttentionHint");
-  if (attnHint) {
-    if (currentTier === "Manager") {
-      const highPriority = outstanding.filter(a => a.priority === "High" || a.priority === "Urgent").length;
-      const today = todayStr();
-      const overdue = outstanding.filter(a => a.deadline && a.deadline < today).length;
-      attnHint.textContent = highPriority + " high priority · " + overdue + " overdue";
-    } else {
-      attnHint.textContent = "Priority and overdue detail is visible to the Manager tier.";
-    }
-  }
-
-  const tasks = (cache.tasks || []).filter(t => t.archived !== "Yes");
-  const openTasks = tasks.filter(t => t.status !== "Completed" && t.status !== "Cancelled");
-  set("statTasks", openTasks.length);
+  const hint = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
   const today = todayStr();
-  const dueToday = openTasks.filter(t => t.dueDate === today).length;
-  const overdueTasks = openTasks.filter(t => t.dueDate && t.dueDate < today).length;
-  const mine = openTasks.filter(t => (t.assignedTo || "").toLowerCase() === (currentWorker || "").toLowerCase()).length;
-  const teamHint = document.getElementById("teamHint");
-  if (teamHint) teamHint.textContent = dueToday + " due today · " + overdueTasks + " overdue · " + mine + " assigned to you";
+  const weekEnd = addDays(today, 7);
+  const notArchived = r => r.archived !== "Yes";
 
-  const events = (cache.calendarEvents || []).filter(e => e.archived !== "Yes");
-  const upcoming = events.filter(e => e.status !== "Cancelled" && e.date >= today);
+  // Manager Attention — the open flags, by priority.
+  const outstanding = (cache.directorAttention || []).filter(a => notArchived(a) && a.status === "Open");
+  set("statDirectorAttention", outstanding.length);
+  if (currentTier === "Manager") {
+    const overdue = outstanding.filter(a => a.deadline && a.deadline < today).length;
+    const dueToday = outstanding.filter(a => a.deadline === today).length;
+    hint("directorAttentionHint", footnote([nOf(overdue, "overdue"), nOf(dueToday, "due today")]
+      .concat(countBy(outstanding, a => (a.priority || "Normal").toLowerCase(), ["urgent", "high", "normal", "low"])), "Nothing waiting for you"));
+  } else {
+    hint("directorAttentionHint", outstanding.length ? "Waiting for the Manager" : "Nothing waiting for the Manager");
+  }
+
+  // Production — the active records, by status.
+  const activeProduction = (cache.production || []).filter(p => notArchived(p) && p.productionStatus !== "COMPLETED");
+  set("statProduction", activeProduction.length);
+  const prodLabel = st => st === "WAITING FOR DIRECTOR" ? "waiting for Manager" : (st || "READY").toLowerCase();
+  hint("productionHint", footnote(countBy(activeProduction, p => prodLabel(p.productionStatus),
+    ["blocked", "waiting for Manager", "waiting for purchase", "ready", "in production", "qc"]), "Nothing in production"));
+
+  // Deliveries — open ones each way, with what's due.
+  const openDeliveries = (cache.deliveries || []).filter(d => notArchived(d) && d.status !== "Delivered" && d.status !== "Cancelled");
+  const deliveryHint = (list, verb) => {
+    if (!list.length) return "Nothing " + verb;
+    const overdue = list.filter(d => d.deliveryDate && d.deliveryDate < today).length;
+    const dueToday = list.filter(d => d.deliveryDate === today).length;
+    const upcoming = list.filter(d => d.deliveryDate && d.deliveryDate >= today).sort((x, y) => x.deliveryDate.localeCompare(y.deliveryDate));
+    const next = upcoming.find(d => d.deliveryDate > today);
+    return footnote([nOf(overdue, "overdue"), nOf(dueToday, "today"),
+      next ? "next " + fmtDate(next.deliveryDate) + (next.clientOrSupplier ? " · " + next.clientOrSupplier : "") : nOf(list.filter(d => !d.deliveryDate).length, "no date set")], list.length + " open");
+  };
+  const incoming = openDeliveries.filter(d => d.direction === "Incoming");
+  const outgoing = openDeliveries.filter(d => d.direction === "Outgoing");
+  set("statIncoming", incoming.length);
+  set("statOutgoing", outgoing.length);
+  hint("incomingHint", deliveryHint(incoming, "expected"));
+  const notReady = outgoing.filter(d => d.packagingStatus === "Missing" || d.labelStatus === "Missing" || d.boxStatus === "Missing").length;
+  hint("outgoingHint", footnote([nOf(notReady, "packaging not ready"), outgoing.length ? deliveryHint(outgoing, "going out") : ""], "Nothing going out"));
+
+  // Purchasing — the open purchases, by status.
+  const openPurchases = (cache.purchases || []).filter(p => notArchived(p) && p.status !== "Completed" && p.status !== "Rejected");
+  set("statPurchases", openPurchases.length);
+  const lateArrivals = openPurchases.filter(p => p.expectedArrival && p.expectedArrival < today && p.status !== "Received").length;
+  const unpaid = openPurchases.filter(p => p.ordered === "Yes" && p.paid !== "Yes").length;
+  hint("purchasingHint", footnote([nOf(lateArrivals, "arrival overdue"), nOf(unpaid, "ordered, not paid")]
+    .concat(countBy(openPurchases, p => (p.status || "Need Identified").toLowerCase(),
+      ["pending approval", "need identified", "approved", "ordered", "paid", "awaiting supplier", "received"])), "No open purchases"));
+
+  // Communications — the open conversations, by next step.
+  const openComms = (cache.communications || []).filter(c => notArchived(c) && c.status !== "Resolved");
+  set("statCommunications", openComms.length);
+  const followUpsDue = openComms.filter(c => c.followUpDate && c.followUpDate <= today).length;
+  hint("communicationsHint", footnote([nOf(followUpsDue, "follow-up due")]
+    .concat(countBy(openComms, c => commNeedsManager(c.type) ? "need Manager" : (c.type || "other").toLowerCase(),
+      ["need Manager", "follow-up needed", "waiting for their reply"])), "No open conversations"));
+
+  // Tasks — the open tasks, with what's due and whose.
+  const openTasks = (cache.tasks || []).filter(t => notArchived(t) && t.status !== "Completed" && t.status !== "Cancelled");
+  set("statTasks", openTasks.length);
+  const mine = openTasks.filter(t => (t.assignedTo || "").toLowerCase() === (currentWorker || "").toLowerCase()).length;
+  hint("teamHint", footnote([
+    nOf(openTasks.filter(t => t.dueDate && t.dueDate < today).length, "overdue"),
+    nOf(openTasks.filter(t => t.dueDate === today).length, "due today"),
+    nOf(mine, "assigned to you"),
+    nOf(openTasks.filter(t => !t.assignedTo).length, "unassigned")
+  ], openTasks.length ? openTasks.length + " open, none due yet" : "No open tasks"));
+
+  // Calendar — everything on the Calendar from today on, not just events.
+  const upcoming = collectAllDatedItems().filter(it => !it.archived && !isItemDone(it) && it.date && it.date >= today);
   set("statCalendar", upcoming.length);
-  const todaysEvents = upcoming.filter(e => e.date === today).length;
-  const calHint = document.getElementById("calendarHint");
-  if (calHint) calHint.textContent = todaysEvents + " today";
+  const onToday = upcoming.filter(it => it.date === today);
+  const tomorrow = upcoming.filter(it => it.date === addDays(today, 1)).length;
+  const thisWeek = upcoming.filter(it => it.date > addDays(today, 1) && it.date <= weekEnd).length;
+  const next = upcoming.filter(it => it.date > today).sort((x, y) => x.date.localeCompare(y.date))[0];
+  hint("calendarHint", footnote([
+    onToday.length ? onToday.length + " today (" + countBy(onToday, it => it.kind.toLowerCase()).join(", ") + ")" : "",
+    nOf(tomorrow, "tomorrow"), nOf(thisWeek, "later this week"),
+    !onToday.length && next ? "next: " + next.title + " · " + fmtDate(next.date) : ""
+  ], "Nothing coming up"));
 
   renderNotifBadge();
-  // Calendar and Planner aggregate every entity's dates, so they need to
+  // Calendar aggregates every entity's dates, so it needs to
   // stay fresh after any create/update anywhere — piggybacking on
   // renderDashboard() (already called after every mutation in the app)
   // is simpler and safer than chasing down every call site individually.
