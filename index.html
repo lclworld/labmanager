@@ -296,6 +296,15 @@
       </div>
     </div>
 
+    <h3 class="section-title">Manager Attention</h3>
+    <div class="stat-row">
+      <div class="stat warn" data-nav-screen="directorAttention">
+        <div class="stat-head"><div class="lbl">Outstanding</div></div>
+        <div class="num" id="statDirectorAttention">—</div>
+        <div class="hint" id="directorAttentionHint">Priority and overdue detail land in Phase 3.</div>
+      </div>
+    </div>
+
     <h3 class="section-title">Production</h3>
     <div class="stat-row">
       <div class="stat" data-nav-screen="production">
@@ -334,15 +343,6 @@
         <div class="stat-head"><div class="lbl">Open</div></div>
         <div class="num" id="statCommunications">—</div>
         <div class="hint" id="communicationsHint">— need follow-up</div>
-      </div>
-    </div>
-
-    <h3 class="section-title">Manager Attention</h3>
-    <div class="stat-row">
-      <div class="stat warn" data-nav-screen="directorAttention">
-        <div class="stat-head"><div class="lbl">Outstanding</div></div>
-        <div class="num" id="statDirectorAttention">—</div>
-        <div class="hint" id="directorAttentionHint">Priority and overdue detail land in Phase 3.</div>
       </div>
     </div>
 
@@ -1515,19 +1515,36 @@ function describeMissingReadiness(fields) {
   if (fields.sopStatus === "Not Available") missing.push("SOP");
   return missing.length ? "Missing: " + missing.join(", ") + "." : "";
 }
-// Automation ("Page Director"): the moment a production record becomes
-// BLOCKED — at creation or from an edit — it lands in the Director
-// Attention queue on its own. Guarded so a production that's still
-// blocked the next time it's saved doesn't get paged a second time.
+// Statuses where a production record is stuck waiting on someone else —
+// each one auto-pages Manager Attention the moment a record enters it
+// (pageDirectorForBlockedProduction), and auto-resolves that item once the
+// record moves on to any other status (resolveDirectorAttentionForProduction).
+const PRODUCTION_ATTENTION_STATUSES = ["BLOCKED", "WAITING FOR DIRECTOR", "WAITING FOR PURCHASE"];
+// Automation ("Page Manager"): the moment a production record enters one of
+// PRODUCTION_ATTENTION_STATUSES above — at creation or from an edit — it
+// lands in the Manager Attention queue on its own. Guarded so a production
+// that's still in one of those statuses the next time it's saved doesn't
+// get paged a second time.
 function pageDirectorForBlockedProduction(rec) {
   const alreadyOpen = (loadCache().directorAttention || []).some(a => a.relatedRecord === rec.productionId && a.status === "Open");
   if (alreadyOpen) return;
   const now = new Date().toISOString();
+  const who = (rec.product || "") + (rec.client ? " for " + rec.client : "");
+  const issueByStatus = {
+    "BLOCKED": "Production blocked: " + who + ". " + describeMissingReadiness(rec),
+    "WAITING FOR DIRECTOR": "Production waiting for Manager: " + who + ".",
+    "WAITING FOR PURCHASE": "Production waiting for a purchase: " + who + "."
+  };
+  const neededByStatus = {
+    "BLOCKED": "Review and advise — approve a substitution/delay, or the Manager can override once you're aware.",
+    "WAITING FOR DIRECTOR": "Review and respond — this record is waiting on the Manager specifically.",
+    "WAITING FOR PURCHASE": "Review — this record is waiting on a purchase to arrive before it can move forward."
+  };
   const fields = {
     relatedRecord: rec.productionId || "",
     category: "Production",
-    issue: "Production blocked: " + (rec.product || "") + (rec.client ? " for " + rec.client : "") + ". " + describeMissingReadiness(rec),
-    whatIsNeededFromDirector: "Review and advise — approve a substitution/delay, or the Manager can override once you're aware.",
+    issue: issueByStatus[rec.productionStatus] || ("Production needs attention: " + who + "."),
+    whatIsNeededFromDirector: neededByStatus[rec.productionStatus] || "Review and advise.",
     missingInformation: "",
     flaggedBy: currentWorker,
     dateFlagged: now,
@@ -2492,12 +2509,13 @@ function wireRecordModal(type, rec) {
         pifStatus: document.getElementById("editPifStatus").value,
         pifLink: document.getElementById("editPifLink").value.trim()
       });
-      const wasBlocked = rec.productionStatus === "BLOCKED";
+      const wasFlagged = PRODUCTION_ATTENTION_STATUSES.includes(rec.productionStatus);
+      const isFlagged = PRODUCTION_ATTENTION_STATUSES.includes(finalStatus);
       applyLocalPatch("production", "productionId", rec.productionId, patch);
       enqueue("updateProduction", { productionId: rec.productionId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderProduction(); renderDashboard();
-      if (!wasBlocked && finalStatus === "BLOCKED") pageDirectorForBlockedProduction(Object.assign({}, rec, patch));
-      if (wasBlocked && finalStatus !== "BLOCKED") resolveDirectorAttentionForProduction(rec.productionId);
+      if (!wasFlagged && isFlagged) pageDirectorForBlockedProduction(Object.assign({}, rec, patch));
+      if (wasFlagged && !isFlagged) resolveDirectorAttentionForProduction(rec.productionId);
     } else if (type === "delivery") {
       const pifCheckbox = document.getElementById("editPifEmailed");
       const patch = pifCheckbox ? { status: newStatus, pifEmailed: pifCheckbox.checked ? "Yes" : "No" } : { status: newStatus };
