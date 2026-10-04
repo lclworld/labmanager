@@ -1428,7 +1428,7 @@ document.getElementById("attentionList").addEventListener("click", (e) => {
 });
 
 // ---------- Communications ----------
-const COMM_TYPES = ["Team Needs To Know", "Team Needs To Do", "Client Needs To Be Contacted", "Supplier Needs Follow-Up", "Waiting For Director", "Waiting For Client", "Waiting For Supplier"];
+const COMM_TYPES = ["Team Needs To Know", "Team Needs To Do", "Client Needs To Be Contacted", "Supplier Needs Follow-Up", "Waiting For Manager", "Waiting For Client", "Waiting For Supplier"];
 document.getElementById("newCommBtn").addEventListener("click", () => {
   const form = document.getElementById("commForm");
   document.getElementById("commSender").value = currentWorker;
@@ -1451,15 +1451,49 @@ document.getElementById("saveCommBtn").addEventListener("click", () => {
     createdBy: currentWorker,
     lastUpdated: now
   };
+  const localComm = Object.assign({ communicationId: "COM-pending-" + Date.now(), pending: true }, fields);
   const cache = loadCache();
   cache.communications = cache.communications || [];
-  cache.communications.unshift(Object.assign({ communicationId: "COM-pending-" + Date.now(), pending: true }, fields));
+  cache.communications.unshift(localComm);
   saveCache(cache);
   renderCommunications();
   ["commRelatedRecord", "commRecipient", "commMessage", "commActionRequired", "commFollowUp"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("commForm").style.display = "none";
   enqueue("createCommunication", fields);
+  if (localComm.type === "Waiting For Manager") flagManagerForCommunication(localComm);
 });
+// Automation: a Communication logged as "Waiting For Manager" also pages
+// Manager Attention on its own — the type already says it's waiting on the
+// Manager, so no one has to remember to flag it separately. The type can't
+// be changed after creation, so this only ever needs to run once; resolves
+// automatically once the communication itself is marked Resolved (see the
+// "communication" branch of the record-edit save handler).
+function flagManagerForCommunication(comm) {
+  const alreadyOpen = (loadCache().directorAttention || []).some(a => a.relatedRecord === comm.communicationId && a.status === "Open");
+  if (alreadyOpen) return;
+  const now = new Date().toISOString();
+  const fields = {
+    relatedRecord: comm.communicationId || "",
+    category: "Other",
+    issue: "Communication waiting for Manager: " + (comm.message || "").slice(0, 80),
+    whatIsNeededFromDirector: "Review this communication and respond.",
+    missingInformation: "",
+    flaggedBy: currentWorker,
+    dateFlagged: now,
+    priority: "Normal",
+    deadline: comm.followUpDate || "",
+    status: "Open",
+    directorResponse: "",
+    dateResolved: ""
+  };
+  const cache = loadCache();
+  cache.directorAttention = cache.directorAttention || [];
+  cache.directorAttention.unshift(Object.assign({ attentionId: "ATT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDirectorAttention();
+  renderDashboard();
+  enqueue("flagDirectorAttention", fields);
+}
 let commFilterStatus = "all";
 document.getElementById("commFilter").addEventListener("click", (e) => {
   const btn = e.target.closest("button");
@@ -1565,14 +1599,83 @@ function pageDirectorForBlockedProduction(rec) {
 // The other half: once a paged production is no longer blocked (readiness
 // fixed, or a Manager override), close out its attention item on its own
 // instead of leaving an open queue entry for a problem that's already gone.
-function resolveDirectorAttentionForProduction(productionId, note) {
-  const openItem = (loadCache().directorAttention || []).find(a => a.relatedRecord === productionId && a.status === "Open");
+// Generic by relatedRecord key, so every auto-paging automation below
+// (QC failed, unreviewed completion, Communications) reuses this same
+// resolver instead of each needing its own.
+function resolveDirectorAttentionForProduction(relatedId, note) {
+  const openItem = (loadCache().directorAttention || []).find(a => a.relatedRecord === relatedId && a.status === "Open");
   if (!openItem) return;
-  const patch = { status: "Resolved", directorResponse: note || "Auto-resolved — production no longer blocked." };
+  const patch = { status: "Resolved", directorResponse: note || "Auto-resolved." };
   applyLocalPatch("directorAttention", "attentionId", openItem.attentionId, patch);
   enqueue("respondDirectorAttention", { attentionId: openItem.attentionId, respondedBy: currentWorker, newStatus: patch.status, directorResponse: patch.directorResponse });
   renderDirectorAttention();
   renderDashboard();
+}
+// Automation: a production record's QC Status moving to "Failed" also pages
+// Manager Attention on its own. Keyed with a "-qc" suffix (distinct from
+// the BLOCKED/WAITING page above) so a QC failure and a readiness block on
+// the same record can't mask each other — each opens and resolves
+// independently. Resolves automatically once QC Status moves off Failed.
+function flagManagerForFailedQc(rec) {
+  const key = rec.productionId + "-qc";
+  const alreadyOpen = (loadCache().directorAttention || []).some(a => a.relatedRecord === key && a.status === "Open");
+  if (alreadyOpen) return;
+  const now = new Date().toISOString();
+  const who = (rec.product || "") + (rec.client ? " for " + rec.client : "");
+  const fields = {
+    relatedRecord: key,
+    category: "Production",
+    issue: "QC failed: " + who + ".",
+    whatIsNeededFromDirector: "Review the QC failure and decide whether to rework, scrap, or proceed with an exception.",
+    missingInformation: "",
+    flaggedBy: currentWorker,
+    dateFlagged: now,
+    priority: "High",
+    deadline: "",
+    status: "Open",
+    directorResponse: "",
+    dateResolved: ""
+  };
+  const cache = loadCache();
+  cache.directorAttention = cache.directorAttention || [];
+  cache.directorAttention.unshift(Object.assign({ attentionId: "ATT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDirectorAttention();
+  renderDashboard();
+  enqueue("flagDirectorAttention", fields);
+}
+// Automation: a production record reaching COMPLETED while Manager Review
+// is still "Not Reviewed" also pages Manager Attention on its own — keyed
+// with a "-review" suffix for the same reason as the QC one above.
+// Resolves automatically once Manager Review is set to anything else
+// (Reviewed or Needs Changes both count as "someone looked at it").
+function flagManagerForUnreviewedCompletion(rec) {
+  const key = rec.productionId + "-review";
+  const alreadyOpen = (loadCache().directorAttention || []).some(a => a.relatedRecord === key && a.status === "Open");
+  if (alreadyOpen) return;
+  const now = new Date().toISOString();
+  const who = (rec.product || "") + (rec.client ? " for " + rec.client : "");
+  const fields = {
+    relatedRecord: key,
+    category: "Production",
+    issue: "Completed but not yet reviewed by Manager: " + who + ".",
+    whatIsNeededFromDirector: "Review the completed batch and set Manager Review to Reviewed (or Needs Changes).",
+    missingInformation: "",
+    flaggedBy: currentWorker,
+    dateFlagged: now,
+    priority: "Normal",
+    deadline: "",
+    status: "Open",
+    directorResponse: "",
+    dateResolved: ""
+  };
+  const cache = loadCache();
+  cache.directorAttention = cache.directorAttention || [];
+  cache.directorAttention.unshift(Object.assign({ attentionId: "ATT-pending-" + Date.now(), pending: true }, fields));
+  saveCache(cache);
+  renderDirectorAttention();
+  renderDashboard();
+  enqueue("flagDirectorAttention", fields);
 }
 document.getElementById("newProductionBtn").addEventListener("click", () => {
   const form = document.getElementById("productionForm");
@@ -2258,13 +2361,19 @@ function findRecord(type, id) {
 // hand-typed text) just displays as-is, unchanged.
 function describeRelatedRecord(value) {
   if (!value) return value;
-  const task = findRecord("task", value);
+  // Auto-paged attention items key QC-failed/unreviewed-completion items
+  // with a "-qc"/"-review" suffix (see flagManagerForFailedQc and
+  // flagManagerForUnreviewedCompletion) so they can't mask the record's
+  // ordinary BLOCKED/WAITING attention item — strip it so this still
+  // resolves to the production record's own friendly label.
+  const baseValue = value.replace(/-(qc|review)$/, "");
+  const task = findRecord("task", baseValue);
   if (task) return "Task — " + task.title;
-  const production = findRecord("production", value);
+  const production = findRecord("production", baseValue);
   if (production) return "Production — " + production.product;
-  const delivery = findRecord("delivery", value);
+  const delivery = findRecord("delivery", baseValue);
   if (delivery) return "Delivery — " + delivery.direction + (delivery.clientOrSupplier ? " · " + delivery.clientOrSupplier : "");
-  const purchase = findRecord("purchase", value);
+  const purchase = findRecord("purchase", baseValue);
   if (purchase) return "Purchase — " + purchase.item;
   return value;
 }
@@ -2481,6 +2590,7 @@ function wireRecordModal(type, rec) {
       applyLocalPatch("communications", "communicationId", rec.communicationId, patch);
       enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: patch });
       renderCommunications();
+      if (newStatus === "Resolved") resolveDirectorAttentionForProduction(rec.communicationId, "Auto-resolved — communication marked Resolved.");
     } else if (type === "production") {
       const readiness = {
         packagingReadiness: document.getElementById("editPackagingReadiness").value,
@@ -2511,11 +2621,19 @@ function wireRecordModal(type, rec) {
       });
       const wasFlagged = PRODUCTION_ATTENTION_STATUSES.includes(rec.productionStatus);
       const isFlagged = PRODUCTION_ATTENTION_STATUSES.includes(finalStatus);
+      const wasQcFailed = rec.qcStatus === "Failed";
+      const isQcFailed = patch.qcStatus === "Failed";
+      const wasUnreviewedCompletion = rec.productionStatus === "COMPLETED" && rec.directorReviewStatus === "Not Reviewed";
+      const isUnreviewedCompletion = finalStatus === "COMPLETED" && patch.directorReviewStatus === "Not Reviewed";
       applyLocalPatch("production", "productionId", rec.productionId, patch);
       enqueue("updateProduction", { productionId: rec.productionId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderProduction(); renderDashboard();
       if (!wasFlagged && isFlagged) pageDirectorForBlockedProduction(Object.assign({}, rec, patch));
       if (wasFlagged && !isFlagged) resolveDirectorAttentionForProduction(rec.productionId);
+      if (!wasQcFailed && isQcFailed) flagManagerForFailedQc(Object.assign({}, rec, patch));
+      if (wasQcFailed && !isQcFailed) resolveDirectorAttentionForProduction(rec.productionId + "-qc", "Auto-resolved — QC status no longer Failed.");
+      if (!wasUnreviewedCompletion && isUnreviewedCompletion) flagManagerForUnreviewedCompletion(Object.assign({}, rec, patch));
+      if (wasUnreviewedCompletion && !isUnreviewedCompletion) resolveDirectorAttentionForProduction(rec.productionId + "-review", "Auto-resolved — Manager Review is no longer Not Reviewed.");
     } else if (type === "delivery") {
       const pifCheckbox = document.getElementById("editPifEmailed");
       const patch = pifCheckbox ? { status: newStatus, pifEmailed: pifCheckbox.checked ? "Yes" : "No" } : { status: newStatus };
