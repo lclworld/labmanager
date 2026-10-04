@@ -83,6 +83,13 @@
   .hidden-field { display: none !important; }
   .check-row { display: flex; align-items: center; gap: 8px; font-size: 0.78rem; font-weight: 600; color: var(--black); text-transform: none; letter-spacing: normal; margin: 14px 0 0; cursor: pointer; }
   .check-row input { width: 16px; height: 16px; flex: none; }
+  details.more { margin-top: 14px; border-top: 1.5px dashed var(--border); padding-top: 4px; }
+  details.more > summary { cursor: pointer; list-style: none; font-size: 0.78rem; font-weight: 700; color: var(--orange); padding: 10px 0 2px; }
+  details.more > summary::-webkit-details-marker { display: none; }
+  details.more > summary::before { content: "+ "; }
+  details.more[open] > summary::before { content: "\2212  "; }
+  .staff-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; max-width: 280px; }
+  .staff-pick .btn { margin-top: 0; padding: 16px 12px; font-size: 1rem; }
   .stat[data-nav-screen] { cursor: pointer; }
   .stat[data-nav-screen]:active { background: rgba(255,145,77,0.08); }
 
@@ -238,8 +245,7 @@
       <div class="mark">L</div>
       <div class="word">LCL Operations Centre</div>
       <div style="font-size:0.95rem; font-weight:700; margin:16px 0; text-align:center;">Who's working here today?</div>
-      <input id="workerNameInput" placeholder="First name" style="text-align:center; font-size:1rem; padding:12px; max-width:240px;">
-      <button class="btn primary" id="startWorking" style="max-width:240px;">Start Working</button>
+      <div class="staff-pick" id="staffPick"></div>
     </div>
   </div>
 
@@ -277,13 +283,6 @@
     <div class="sync-status" id="syncStatus">Loading…</div>
     <div class="card sync-issues-card" id="syncIssuesCard" style="display:none;"></div>
 
-    <div class="card external-link-card">
-      <div>
-        <div class="elc-title">LCL Inventory</div>
-        <div class="hint" style="margin:2px 0 0;">Stock, batches and formulas live there — opens in a new tab.</div>
-      </div>
-      <a class="btn dark" href="https://lclworld.github.io/lcl-tools/inventory/" target="_blank" rel="noopener noreferrer">Open ↗</a>
-    </div>
 
     <!-- On a phone, the sidebar never shows (it's desktop-only, >=1080px) and
          the tab bar only fits 5 slots — without a card here, Communications
@@ -368,25 +367,22 @@
   <!-- TASKS (+ Planner, as a second tab of the same screen) -->
   <div class="screen" id="tasks">
     <h2 class="title">Tasks</h2>
-    <div class="filter-row" id="taskViewTabs">
-      <button data-view="list" class="active">Task List</button>
-      <button data-view="planner">Planner</button>
-    </div>
 
     <div id="taskListView">
       <button class="btn primary" id="newTaskBtn">+ New Task</button>
       <div class="card" id="taskForm" style="display:none;">
         <label>Title</label><input id="taskTitle" placeholder="Task title">
-        <label>Description</label><textarea id="taskDescription" placeholder="Details (optional)"></textarea>
         <div class="form-grid">
-          <div><label>Category</label><select id="taskCategory"><option>General</option><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Admin</option><option>Client</option><option>Supplier</option><option>Social Media</option></select></div>
-          <div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
-          <div><label>Assigned To</label><input id="taskAssignedTo" placeholder="First name"></div>
+          <div><label>Assigned To</label><select id="taskAssignedTo" data-staff="Unassigned"></select></div>
           <div><label>Due Date</label><input type="date" id="taskDueDate"></div>
+          <div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
         </div>
-        <label>Related Record</label><input id="taskRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
-        <label>Notes</label><textarea id="taskNotes" placeholder="Optional"></textarea>
         <label class="check-row"><input type="checkbox" id="taskFlagDirector"> Flag for Manager attention — also sends this to the Manager Attention queue</label>
+        <details class="more"><summary>More details</summary>
+          <label>Description</label><textarea id="taskDescription" placeholder="Details (optional)"></textarea>
+          <label>Category</label><select id="taskCategory"><option>General</option><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Admin</option><option>Client</option><option>Supplier</option><option>Social Media</option></select>
+          <label>Notes</label><textarea id="taskNotes" placeholder="Optional"></textarea>
+        </details>
         <button class="btn primary" id="saveTaskBtn">Save Task</button>
       </div>
       <div class="filter-row" id="taskFilter">
@@ -401,19 +397,6 @@
       <div class="card"><div id="taskList"></div></div>
     </div>
 
-    <div id="taskPlannerView" style="display:none;">
-      <div class="hint" style="margin:0 0 14px;">Everything with a date, grouped by when it's due — Tasks, Calendar, Production, Deliveries, Purchasing and Manager Attention deadlines all pulled in automatically.</div>
-      <div class="filter-row" id="plannerFilter">
-        <button data-kind="all" class="active">All</button>
-        <button data-kind="Task">Tasks</button>
-        <button data-kind="Event">Events</button>
-        <button data-kind="Production">Production</button>
-        <button data-kind="Delivery">Deliveries</button>
-        <button data-kind="Purchase">Purchases</button>
-        <button data-kind="Manager Attention">Manager Attention</button>
-      </div>
-      <div id="plannerBody"></div>
-    </div>
   </div>
 
   <!-- CALENDAR -->
@@ -425,14 +408,17 @@
       <label>Title</label><input id="eventTitle" placeholder="Event title">
       <div class="form-grid">
         <div><label>Date</label><input type="date" id="eventDate"></div>
-        <div><label>Event Type</label><select id="eventType"><option>Meeting</option><option>Production</option><option>Delivery</option><option>Supplier Arrival</option><option>Client Deadline</option><option>Maintenance</option><option>Other</option></select></div>
         <div><label>Start Time</label><input type="time" id="eventStart"></div>
-        <div><label>End Time</label><input type="time" id="eventEnd"></div>
-        <div><label>Owner</label><input id="eventOwner" placeholder="First name"></div>
-        <div><label>Location</label><input id="eventLocation" placeholder="Optional"></div>
+        <div><label>Event Type</label><select id="eventType"><option>Meeting</option><option>Production</option><option>Delivery</option><option>Supplier Arrival</option><option>Client Deadline</option><option>Maintenance</option><option>Other</option></select></div>
+        <div><label>Owner</label><select id="eventOwner" data-staff="—"></select></div>
       </div>
-      <label>Related Record</label><input id="eventRelatedRecord" placeholder="Optional">
-      <label>Notes</label><textarea id="eventNotes" placeholder="Optional"></textarea>
+      <details class="more"><summary>More details</summary>
+        <div class="form-grid">
+          <div><label>End Time</label><input type="time" id="eventEnd"></div>
+          <div><label>Location</label><input id="eventLocation" placeholder="Optional"></div>
+        </div>
+        <label>Notes</label><textarea id="eventNotes" placeholder="Optional"></textarea>
+      </details>
       <button class="btn primary" id="saveEventBtn">Save Event</button>
     </div>
     <div class="filter-row" id="calendarFilter">
@@ -443,6 +429,7 @@
       <button data-kind="Delivery">Deliveries</button>
       <button data-kind="Purchase">Purchases</button>
       <button data-kind="Manager Attention">Manager Attention</button>
+      <button data-kind="Follow-up">Follow-ups</button>
       <button data-kind="__archived__">Archived</button>
     </div>
 
@@ -465,16 +452,17 @@
     <h2 class="title">Manager Attention</h2>
     <button class="btn primary" id="newAttentionBtn">Flag for Manager</button>
     <div class="card" id="attentionForm" style="display:none;">
-      <label>Related Record</label><input id="attnRelatedRecord" placeholder="e.g. PROD-0004 (optional)">
-      <label>Category</label>
-      <select id="attnCategory"><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Client</option><option>Supplier</option><option>Finance</option><option>Other</option></select>
       <label>What happened, and what's already been done?</label><textarea id="attnIssue" placeholder="Describe the situation and any steps already taken"></textarea>
       <label>What's needed from the Manager?</label><textarea id="attnNeeded"></textarea>
-      <label>What information is missing?</label><textarea id="attnMissing" placeholder="Optional"></textarea>
       <div class="form-grid">
         <div><label>Priority</label><select id="attnPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
         <div><label>Deadline</label><input type="date" id="attnDeadline"></div>
       </div>
+      <details class="more"><summary>More details</summary>
+        <label>Category</label>
+        <select id="attnCategory"><option>Production</option><option>Delivery</option><option>Purchasing</option><option>Client</option><option>Supplier</option><option>Finance</option><option>Other</option></select>
+        <label>What information is missing?</label><textarea id="attnMissing" placeholder="Optional"></textarea>
+      </details>
       <button class="btn primary" id="saveAttentionBtn">Send to Manager</button>
     </div>
     <div class="filter-row" id="attentionFilter">
@@ -489,32 +477,35 @@
   <!-- COMMUNICATIONS -->
   <div class="screen" id="communications">
     <h2 class="title">Communications</h2>
-    <button class="btn primary" id="newCommBtn">+ New</button>
+    <div class="hint" style="margin:-8px 0 14px;">Client and supplier conversations from Gmail and Beeper. Log each one with its next step so nothing is left hanging.</div>
+    <button class="btn primary" id="newCommBtn">+ Log Conversation</button>
     <div class="card" id="commForm" style="display:none;">
-      <label>Type</label>
-      <select id="commType">
-        <option>Team Needs To Know</option>
-        <option>Team Needs To Do</option>
-        <option>Client Needs To Be Contacted</option>
-        <option>Supplier Needs Follow-Up</option>
-        <option>Waiting For Manager</option>
-        <option>Waiting For Client</option>
-        <option>Waiting For Supplier</option>
-      </select>
-      <label>Related Record</label><input id="commRelatedRecord" placeholder="Optional">
       <div class="form-grid">
-        <div><label>Sender</label><input id="commSender" placeholder="First name" disabled></div>
-        <div><label>Recipient</label><input id="commRecipient" placeholder="Optional"></div>
+        <div><label>Who</label><select id="commContactType"><option>Client</option><option>Supplier</option></select></div>
+        <div><label>Channel</label><select id="commChannel"><option>Gmail</option><option>WhatsApp</option><option>Instagram</option><option>Phone Call</option><option>Other</option></select></div>
       </div>
-      <label>Message</label><textarea id="commMessage"></textarea>
-      <div class="form-grid">
-        <div><label>Action Required</label><input id="commActionRequired" placeholder="Optional"></div>
-        <div><label>Follow-up Date</label><input type="date" id="commFollowUp"></div>
+      <label>Client / Supplier Name</label><input id="commRecipient" placeholder="Name or company">
+      <label>What's it about?</label><textarea id="commMessage" placeholder="Short summary, e.g. Asked for a quote on 500 body butters"></textarea>
+      <label>Next Step</label>
+      <select id="commType">
+        <option>Follow-Up Needed</option>
+        <option>Needs Manager Input</option>
+        <option>Waiting For Their Reply</option>
+        <option>Done — No Action Needed</option>
+      </select>
+      <div id="commNeededWrap" style="display:none;">
+        <label>What do you need from the Manager?</label><textarea id="commActionRequired" placeholder="e.g. Confirm price for 500 units"></textarea>
+      </div>
+      <div id="commFollowUpWrap">
+        <label>Follow-up Date</label><input type="date" id="commFollowUp">
       </div>
       <button class="btn primary" id="saveCommBtn">Save</button>
     </div>
     <div class="filter-row" id="commFilter">
       <button data-status="all" class="active">Active</button>
+      <button data-status="Client">Clients</button>
+      <button data-status="Supplier">Suppliers</button>
+      <button data-status="__done__">Done</button>
       <button data-status="__archived__">Archived</button>
     </div>
     <div id="commBody"></div>
@@ -525,26 +516,26 @@
     <h2 class="title">Production</h2>
     <button class="btn primary" id="newProductionBtn">+ New Production Record</button>
     <div class="card" id="productionForm" style="display:none;">
+      <label>Product Name/Code</label><input id="prodProduct" placeholder="e.g. Shea Body Butter or LCL-012">
       <div class="form-grid">
         <div><label>Client</label><input id="prodClient" placeholder="Optional"></div>
-        <div><label>Product</label><input id="prodProduct" placeholder="Product name"></div>
         <div><label>Batch Size</label><input id="prodBatchSize" placeholder="e.g. 5kg"></div>
         <div><label>Planned Date</label><input type="date" id="prodPlannedDate"></div>
-        <div><label>Assigned Staff</label><input id="prodAssignedStaff" placeholder="Optional"></div>
-        <div>
-          <label>Inventory Reference</label>
-          <input id="prodInventoryRef" placeholder="Batch/plan name from Inventory" autocomplete="off">
+        <div><label>Assigned Staff</label><select id="prodAssignedStaff" data-staff="Unassigned"></select></div>
+      </div>
+      <details class="more"><summary>More details — readiness, Inventory link, notes</summary>
+        <label>Inventory Reference</label>
+        <input id="prodInventoryRef" placeholder="Batch/plan name from Inventory" autocomplete="off">
+        <div id="prodInventoryRefHint"></div>
+        <div class="form-grid">
+          <div><label>Packaging Readiness</label><select id="prodPackagingReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+          <div><label>Label Readiness</label><select id="prodLabelReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+          <div><label>Box Readiness</label><select id="prodBoxReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+          <div><label>Batch Sheet Status</label><select id="prodBatchSheetStatus"><option>Prepared</option><option>Not Prepared</option></select></div>
+          <div><label>SOP Status</label><select id="prodSopStatus"><option>Available</option><option>Not Available</option></select></div>
         </div>
-      </div>
-      <div id="prodInventoryRefHint"></div>
-      <div class="form-grid">
-        <div><label>Packaging Readiness</label><select id="prodPackagingReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
-        <div><label>Label Readiness</label><select id="prodLabelReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
-        <div><label>Box Readiness</label><select id="prodBoxReadiness"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
-        <div><label>Batch Sheet Status</label><select id="prodBatchSheetStatus"><option>Prepared</option><option>Not Prepared</option></select></div>
-        <div><label>SOP Status</label><select id="prodSopStatus"><option>Available</option><option>Not Available</option></select></div>
-      </div>
-      <label>Notes</label><textarea id="prodNotes" placeholder="Optional"></textarea>
+        <label>Notes</label><textarea id="prodNotes" placeholder="Optional"></textarea>
+      </details>
       <button class="btn primary" id="saveProductionBtn">Save Production Record</button>
     </div>
 
@@ -579,27 +570,29 @@
       <label>Direction</label><select id="delDirection"><option>Incoming</option><option>Outgoing</option></select>
       <div class="outgoing-only">
         <label>Related Production</label>
-        <input id="delRelatedProduction" placeholder="Start typing a product name..." autocomplete="off">
+        <input id="delRelatedProduction" placeholder="Start typing a product name/code..." autocomplete="off">
         <div id="delRelatedProductionHint"></div>
       </div>
       <label>Client or Supplier</label><input id="delClientOrSupplier" placeholder="Name">
       <label>Items</label><textarea id="delItems" placeholder="What's being delivered"></textarea>
-      <div class="form-grid">
-        <div><label>Delivery Date</label><input type="date" id="delDeliveryDate"></div>
-        <div><label>Expected Time</label><input type="time" id="delExpectedTime"></div>
-        <div><label>Contact</label><input id="delContact" placeholder="Optional"></div>
-        <div><label>Cost</label><input id="delCost" placeholder="Optional"></div>
-        <div><label>Payment Status</label><select id="delPaymentStatus"><option>Pending</option><option>Paid</option><option>N/A</option></select></div>
-      </div>
-      <div class="outgoing-only form-grid">
-        <div><label>Packaging Status</label><select id="delPackagingStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
-        <div><label>Label Status</label><select id="delLabelStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
-        <div><label>Box Status</label><select id="delBoxStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
-      </div>
-      <div class="outgoing-only">
-        <label class="check-row"><input type="checkbox" id="delPifEmailed"> Product Information Documentation (PID) emailed to client</label>
-      </div>
-      <label>Notes</label><textarea id="delNotes" placeholder="Optional"></textarea>
+      <label>Delivery Date</label><input type="date" id="delDeliveryDate">
+      <details class="more"><summary>More details</summary>
+        <div class="form-grid">
+          <div><label>Expected Time</label><input type="time" id="delExpectedTime"></div>
+          <div><label>Contact</label><input id="delContact" placeholder="Optional"></div>
+          <div><label>Cost</label><input id="delCost" placeholder="Optional"></div>
+          <div><label>Payment Status</label><select id="delPaymentStatus"><option>Pending</option><option>Paid</option><option>N/A</option></select></div>
+        </div>
+        <div class="outgoing-only form-grid">
+          <div><label>Packaging Status</label><select id="delPackagingStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+          <div><label>Label Status</label><select id="delLabelStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+          <div><label>Box Status</label><select id="delBoxStatus"><option>Ready</option><option>Missing</option><option>N/A</option></select></div>
+        </div>
+        <div class="outgoing-only">
+          <label class="check-row"><input type="checkbox" id="delPifEmailed"> Product Information Documentation (PID) emailed to client</label>
+        </div>
+        <label>Notes</label><textarea id="delNotes" placeholder="Optional"></textarea>
+      </details>
       <button class="btn primary" id="saveDeliveryBtn">Save Delivery</button>
     </div>
     <div class="filter-row" id="deliveryFilter">
@@ -617,15 +610,19 @@
     <button class="btn primary" id="newPurchaseBtn">+ New Purchase</button>
     <div class="card" id="purchaseForm" style="display:none;">
       <div class="form-grid">
-        <div><label>Supplier</label><input id="purSupplier" placeholder="Supplier name"></div>
         <div><label>Item</label><input id="purItem" placeholder="What's needed"></div>
-        <div><label>Category</label><input id="purCategory" placeholder="e.g. Packaging"></div>
+        <div><label>Supplier</label><input id="purSupplier" placeholder="Supplier name"></div>
         <div><label>Quantity</label><input id="purQuantity" placeholder="Optional"></div>
         <div><label>Amount</label><input id="purAmount" placeholder="Optional"></div>
         <div><label>Expected Arrival</label><input type="date" id="purExpectedArrival"></div>
-        <div><label>Responsible Person</label><input id="purResponsiblePerson" placeholder="Optional"></div>
       </div>
-      <label>Notes</label><textarea id="purNotes" placeholder="Optional"></textarea>
+      <details class="more"><summary>More details</summary>
+        <div class="form-grid">
+          <div><label>Category</label><input id="purCategory" placeholder="e.g. Packaging"></div>
+          <div><label>Responsible Person</label><select id="purResponsiblePerson" data-staff="—"></select></div>
+        </div>
+        <label>Notes</label><textarea id="purNotes" placeholder="Optional"></textarea>
+      </details>
       <button class="btn primary" id="savePurchaseBtn">Save Purchase</button>
     </div>
     <div class="filter-row" id="purchaseFilter">
@@ -683,6 +680,14 @@ const ADMIN_PIN = "2635";
 const CACHE_KEY = "lcl_oc_cache_v1";
 const QUEUE_KEY = "lcl_oc_queue_v1";
 const WORKER_KEY = "lcl_oc_worker_v1";
+// Everyone who logs in or gets assigned work. Picked from a list, never
+// typed, so "Gloria" is always spelled the same and "assigned to you" works.
+const STAFF = ["Gloria", "Efua", "Rosemary", "Dorcas"];
+function fillStaffSelects() {
+  document.querySelectorAll("select[data-staff]").forEach(sel => {
+    sel.innerHTML = `<option value="">${escapeHtml(sel.dataset.staff)}</option>` + STAFF.map(n => `<option>${n}</option>`).join("");
+  });
+}
 
 function loadCache() {
   try {
@@ -956,8 +961,8 @@ function renderDashboard() {
   const commsHint = document.getElementById("communicationsHint");
   if (commsHint) {
     const needFollowUp = openComms.filter(c => c.followUpDate).length;
-    const actionRequired = openComms.filter(c => c.actionRequired === "Yes").length;
-    commsHint.textContent = needFollowUp + " need follow-up · " + actionRequired + " action required";
+    const needManager = openComms.filter(c => commNeedsManager(c.type)).length;
+    commsHint.textContent = needFollowUp + " need follow-up · " + needManager + " need Manager";
   }
 
   const attention = (cache.directorAttention || []).filter(a => a.archived !== "Yes");
@@ -998,7 +1003,7 @@ function renderDashboard() {
   // renderDashboard() (already called after every mutation in the app)
   // is simpler and safer than chasing down every call site individually.
   renderCalendar();
-  renderPlanner();
+ 
 }
 
 // Command Center's stat cards jump straight to the screen they summarize.
@@ -1011,7 +1016,7 @@ function renderAll() {
   renderDashboard();
   renderTasks();
   renderCalendar();
-  renderPlanner();
+ 
   renderDirectorAttention();
   renderCommunications();
   renderProduction();
@@ -1021,17 +1026,7 @@ function renderAll() {
   renderHistory();
 }
 
-// ---------- Tasks (+ Planner tab) ----------
-document.getElementById("taskViewTabs").addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-  document.querySelectorAll("#taskViewTabs button").forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
-  const isPlanner = btn.dataset.view === "planner";
-  document.getElementById("taskListView").style.display = isPlanner ? "none" : "block";
-  document.getElementById("taskPlannerView").style.display = isPlanner ? "block" : "none";
-  if (isPlanner) renderPlanner();
-});
+// ---------- Tasks ----------
 let taskFilterStatus = "all";
 document.getElementById("newTaskBtn").addEventListener("click", () => {
   const form = document.getElementById("taskForm");
@@ -1055,7 +1050,7 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
     directorAttentionFlag: flagForDirector,
     missingInformation: "",
     notes: document.getElementById("taskNotes").value.trim(),
-    relatedRecord: document.getElementById("taskRelatedRecord").value.trim(),
+    relatedRecord: "",
     status: "Not Started",
     lastUpdated: now
   };
@@ -1069,7 +1064,7 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
   if (flagForDirector) {
     flagDirectorForTask(localTask);
   }
-  ["taskTitle", "taskDescription", "taskAssignedTo", "taskDueDate", "taskRelatedRecord", "taskNotes"].forEach(id => document.getElementById(id).value = "");
+  ["taskTitle", "taskDescription", "taskAssignedTo", "taskDueDate", "taskNotes"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("taskFlagDirector").checked = false;
   document.getElementById("taskForm").style.display = "none";
   enqueue("createTask", fields);
@@ -1145,10 +1140,9 @@ document.getElementById("taskList").addEventListener("click", (e) => {
 // into a separate calendar entry. "Event" is the one kind that's actually
 // created here, for things with no other natural home (meetings etc).
 const ARCHIVED_FILTER = "__archived__";
-// Returns EVERY item, including ones with no date yet (Planner puts those
-// in a "No Date" bucket so a flagged task never just disappears; Calendar
-// only places dots for items that do have one, which falls out naturally
-// since an empty date never matches a real day cell).
+// Returns EVERY item, including ones with no date yet; Calendar only places
+// dots for items that do have one, which falls out naturally since an empty
+// date never matches a real day cell.
 function collectAllDatedItems() {
   const cache = loadCache();
   const items = [];
@@ -1167,6 +1161,9 @@ function collectAllDatedItems() {
   (cache.purchases || []).forEach(p => {
     items.push({ kind: "Purchase", type: "purchase", id: p.purchaseId, title: p.item, date: p.expectedArrival || "", meta: (p.supplier || "") + " · Expected arrival", status: p.status, archived: p.archived === "Yes" });
   });
+  (cache.communications || []).filter(c => c.followUpDate).forEach(c => {
+    items.push({ kind: "Follow-up", type: "communication", id: c.communicationId, title: "Follow up: " + (c.recipient || (c.message || "").slice(0, 40)), date: c.followUpDate, meta: [c.contactType, c.channel].filter(Boolean).join(" · ") || "Conversation", status: c.status === "Resolved" ? "Done" : c.type, archived: c.archived === "Yes" });
+  });
   (cache.directorAttention || []).forEach(a => {
     items.push({ kind: "Manager Attention", type: "attention", id: a.attentionId, title: (a.issue || "").slice(0, 60), date: a.deadline || "", meta: "Deadline · " + (a.priority || "Normal"), status: a.status, archived: a.archived === "Yes" });
   });
@@ -1179,6 +1176,7 @@ function isItemDone(it) {
   if (it.type === "delivery") return it.status === "Delivered" || it.status === "Cancelled";
   if (it.type === "purchase") return it.status === "Received" || it.status === "Completed" || it.status === "Rejected";
   if (it.type === "attention") return it.status === "Resolved" || it.status === "Approved" || it.status === "Rejected";
+  if (it.type === "communication") return it.status === "Done";
   return false;
 }
 
@@ -1200,7 +1198,7 @@ document.getElementById("saveEventBtn").addEventListener("click", () => {
     endTime: document.getElementById("eventEnd").value,
     eventType: document.getElementById("eventType").value,
     owner: document.getElementById("eventOwner").value.trim(),
-    relatedRecord: document.getElementById("eventRelatedRecord").value.trim(),
+    relatedRecord: "",
     location: document.getElementById("eventLocation").value.trim(),
     notes: document.getElementById("eventNotes").value.trim(),
     status: "Scheduled",
@@ -1212,9 +1210,9 @@ document.getElementById("saveEventBtn").addEventListener("click", () => {
   cache.calendarEvents.unshift(Object.assign({ eventId: "EVT-pending-" + Date.now(), pending: true }, fields));
   saveCache(cache);
   renderCalendar();
-  renderPlanner();
+ 
   renderDashboard();
-  ["eventTitle", "eventDate", "eventStart", "eventEnd", "eventOwner", "eventRelatedRecord", "eventLocation", "eventNotes"].forEach(id => document.getElementById(id).value = "");
+  ["eventTitle", "eventDate", "eventStart", "eventEnd", "eventOwner", "eventLocation", "eventNotes"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("eventForm").style.display = "none";
   enqueue("createCalendarEvent", fields);
 });
@@ -1314,55 +1312,6 @@ function renderCalendar() {
 }
 
 // ---------- Planner ----------
-let plannerKind = "all";
-document.getElementById("plannerFilter").addEventListener("click", (e) => {
-  const btn = e.target.closest("button");
-  if (!btn) return;
-  document.querySelectorAll("#plannerFilter button").forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
-  plannerKind = btn.dataset.kind;
-  renderPlanner();
-});
-function dayBucket(dateStr) {
-  if (!dateStr) return "No Date";
-  const d = new Date(dateStr + "T00:00:00");
-  if (isNaN(d)) return "No Date";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const diffDays = Math.round((d - today) / 86400000);
-  if (diffDays < 0) return "Overdue";
-  if (diffDays === 0) return "Today";
-  if (diffDays === 1) return "Tomorrow";
-  if (diffDays <= 7) return "This Week";
-  if (diffDays <= 14) return "Next Week";
-  return "Later";
-}
-function renderPlanner() {
-  let items = collectAllDatedItems().filter(it => !it.archived && !isItemDone(it));
-  if (plannerKind !== "all") items = items.filter(it => it.kind === plannerKind);
-  const order = ["Overdue", "Today", "Tomorrow", "This Week", "Next Week", "Later", "No Date"];
-  const groups = {};
-  items.forEach(it => { const b = dayBucket(it.date); (groups[b] = groups[b] || []).push(it); });
-  const body = document.getElementById("plannerBody");
-  const nonEmpty = order.filter(b => groups[b] && groups[b].length);
-  if (!nonEmpty.length) { body.innerHTML = '<div class="card"><div class="empty-state">Nothing on the planner yet.</div></div>'; return; }
-  body.innerHTML = nonEmpty.map(bucket => `
-    <div class="planner-group-title">${bucket}</div>
-    <div class="card">
-      ${groups[bucket].map(it => `
-        <div class="record-row" data-type="${it.type}" data-id="${escapeHtml(it.id)}">
-          <div>
-            <div class="rr-title">${escapeHtml(it.title)}</div>
-            <div class="rr-meta">${escapeHtml(it.kind)} · ${escapeHtml(it.meta)}</div>
-          </div>
-          <div class="rr-right"><span class="pill ${statusClass(it.status)}">${escapeHtml(it.status || "")}</span></div>
-        </div>`).join("")}
-    </div>`).join("");
-}
-document.getElementById("plannerBody").addEventListener("click", (e) => {
-  const row = e.target.closest(".record-row");
-  if (row) openRecordModal(row.dataset.type, row.dataset.id);
-});
-
 // ---------- Director Attention ----------
 document.getElementById("newAttentionBtn").addEventListener("click", () => {
   const form = document.getElementById("attentionForm");
@@ -1373,7 +1322,7 @@ document.getElementById("saveAttentionBtn").addEventListener("click", () => {
   if (!issue) { document.getElementById("attnIssue").focus(); return; }
   const now = new Date().toISOString();
   const fields = {
-    relatedRecord: document.getElementById("attnRelatedRecord").value.trim(),
+    relatedRecord: "",
     category: document.getElementById("attnCategory").value,
     issue: issue,
     whatIsNeededFromDirector: document.getElementById("attnNeeded").value.trim(),
@@ -1392,7 +1341,7 @@ document.getElementById("saveAttentionBtn").addEventListener("click", () => {
   saveCache(cache);
   renderDirectorAttention();
   renderDashboard();
-  ["attnRelatedRecord", "attnIssue", "attnNeeded", "attnMissing", "attnDeadline"].forEach(id => document.getElementById(id).value = "");
+  ["attnIssue", "attnNeeded", "attnMissing", "attnDeadline"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("attentionForm").style.display = "none";
   enqueue("flagDirectorAttention", fields);
 });
@@ -1428,28 +1377,45 @@ document.getElementById("attentionList").addEventListener("click", (e) => {
 });
 
 // ---------- Communications ----------
-const COMM_TYPES = ["Team Needs To Know", "Team Needs To Do", "Client Needs To Be Contacted", "Supplier Needs Follow-Up", "Waiting For Manager", "Waiting For Client", "Waiting For Supplier"];
+// Communications are client and supplier conversations (Gmail, and
+// WhatsApp/Instagram via Beeper). "type" holds the conversation's next step;
+// older records keep their original types and still show, after these.
+const COMM_NEEDS_MANAGER = "Needs Manager Input";
+const COMM_DONE = "Done — No Action Needed";
+const COMM_TYPES = ["Needs Manager Input", "Follow-Up Needed", "Waiting For Their Reply", COMM_DONE];
+const LEGACY_COMM_NEEDS_MANAGER = "Waiting For Manager";
+function commNeedsManager(type) { return type === COMM_NEEDS_MANAGER || type === LEGACY_COMM_NEEDS_MANAGER; }
+function commHasFollowUp(type) { return type === "Follow-Up Needed" || type === "Waiting For Their Reply"; }
+function updateCommFormVisibility() {
+  const type = document.getElementById("commType").value;
+  document.getElementById("commNeededWrap").style.display = commNeedsManager(type) ? "block" : "none";
+  document.getElementById("commFollowUpWrap").style.display = commHasFollowUp(type) ? "block" : "none";
+}
+document.getElementById("commType").addEventListener("change", updateCommFormVisibility);
 document.getElementById("newCommBtn").addEventListener("click", () => {
   const form = document.getElementById("commForm");
-  document.getElementById("commSender").value = currentWorker;
+  updateCommFormVisibility();
   form.style.display = form.style.display === "none" ? "block" : "none";
 });
 document.getElementById("saveCommBtn").addEventListener("click", () => {
   const message = document.getElementById("commMessage").value.trim();
   if (!message) { document.getElementById("commMessage").focus(); return; }
+  const type = document.getElementById("commType").value;
   const now = new Date().toISOString();
   const fields = {
     date: now,
-    type: document.getElementById("commType").value,
-    relatedRecord: document.getElementById("commRelatedRecord").value.trim(),
+    type: type,
+    relatedRecord: "",
     sender: currentWorker,
     recipient: document.getElementById("commRecipient").value.trim(),
     message: message,
-    actionRequired: document.getElementById("commActionRequired").value.trim(),
-    status: "Open",
-    followUpDate: document.getElementById("commFollowUp").value,
+    actionRequired: commNeedsManager(type) ? document.getElementById("commActionRequired").value.trim() : "",
+    status: type === COMM_DONE ? "Resolved" : "Open",
+    followUpDate: commHasFollowUp(type) ? document.getElementById("commFollowUp").value : "",
     createdBy: currentWorker,
-    lastUpdated: now
+    lastUpdated: now,
+    contactType: document.getElementById("commContactType").value,
+    channel: document.getElementById("commChannel").value
   };
   const localComm = Object.assign({ communicationId: "COM-pending-" + Date.now(), pending: true }, fields);
   const cache = loadCache();
@@ -1457,16 +1423,17 @@ document.getElementById("saveCommBtn").addEventListener("click", () => {
   cache.communications.unshift(localComm);
   saveCache(cache);
   renderCommunications();
-  ["commRelatedRecord", "commRecipient", "commMessage", "commActionRequired", "commFollowUp"].forEach(id => document.getElementById(id).value = "");
+  renderCalendar();
+  renderDashboard();
+  ["commRecipient", "commMessage", "commActionRequired", "commFollowUp"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("commForm").style.display = "none";
   enqueue("createCommunication", fields);
-  if (localComm.type === "Waiting For Manager") flagManagerForCommunication(localComm);
+  if (commNeedsManager(localComm.type)) flagManagerForCommunication(localComm);
 });
-// Automation: a Communication logged as "Waiting For Manager" also pages
-// Manager Attention on its own — the type already says it's waiting on the
-// Manager, so no one has to remember to flag it separately. The type can't
-// be changed after creation, so this only ever needs to run once; resolves
-// automatically once the communication itself is marked Resolved (see the
+// Automation: a conversation whose next step is "Needs Manager Input" also
+// pages Manager Attention on its own, so no one has to remember to flag it
+// separately — at creation, or later when its next step is changed to it.
+// Resolves automatically once the next step moves on (see the
 // "communication" branch of the record-edit save handler).
 function flagManagerForCommunication(comm) {
   const alreadyOpen = (loadCache().directorAttention || []).some(a => a.relatedRecord === comm.communicationId && a.status === "Open");
@@ -1474,9 +1441,9 @@ function flagManagerForCommunication(comm) {
   const now = new Date().toISOString();
   const fields = {
     relatedRecord: comm.communicationId || "",
-    category: "Other",
-    issue: "Communication waiting for Manager: " + (comm.message || "").slice(0, 80),
-    whatIsNeededFromDirector: "Review this communication and respond.",
+    category: comm.contactType === "Supplier" ? "Supplier" : "Client",
+    issue: (comm.recipient ? comm.recipient + ": " : "Conversation: ") + (comm.message || "").slice(0, 80) + (comm.channel ? " (" + comm.channel + ")" : ""),
+    whatIsNeededFromDirector: comm.actionRequired || "Review this conversation and respond.",
     missingInformation: "",
     flaggedBy: currentWorker,
     dateFlagged: now,
@@ -1505,24 +1472,37 @@ document.getElementById("commFilter").addEventListener("click", (e) => {
 });
 function renderCommunications() {
   const cache = loadCache();
-  const showArchived = commFilterStatus === ARCHIVED_FILTER;
-  const items = (cache.communications || []).filter(c => showArchived ? c.archived === "Yes" : (c.archived !== "Yes" && c.status !== "Resolved"));
+  const f = commFilterStatus;
+  const all = cache.communications || [];
+  let items;
+  if (f === ARCHIVED_FILTER) items = all.filter(c => c.archived === "Yes");
+  else if (f === "__done__") items = all.filter(c => c.archived !== "Yes" && c.status === "Resolved");
+  else {
+    items = all.filter(c => c.archived !== "Yes" && c.status !== "Resolved");
+    if (f === "Client" || f === "Supplier") items = items.filter(c => c.contactType === f);
+  }
   const body = document.getElementById("commBody");
   const groups = {};
   items.forEach(c => { (groups[c.type] = groups[c.type] || []).push(c); });
-  const nonEmpty = COMM_TYPES.filter(t => groups[t] && groups[t].length);
-  if (!nonEmpty.length) { body.innerHTML = '<div class="card"><div class="empty-state">' + (showArchived ? "Nothing archived." : "Nothing outstanding.") + '</div></div>'; return; }
+  const order = COMM_TYPES.concat(Object.keys(groups).filter(t => COMM_TYPES.indexOf(t) < 0));
+  const nonEmpty = order.filter(t => groups[t] && groups[t].length);
+  if (!nonEmpty.length) { body.innerHTML = '<div class="card"><div class="empty-state">' + (f === ARCHIVED_FILTER ? "Nothing archived." : f === "__done__" ? "Nothing marked done yet." : "Nothing outstanding.") + '</div></div>'; return; }
+  const today = todayStr();
   body.innerHTML = nonEmpty.map(type => `
     <h3 class="section-title">${escapeHtml(type)}</h3>
     <div class="card">
-      ${groups[type].map(c => `
+      ${groups[type].map(c => {
+        const who = [c.contactType, c.recipient, c.channel].filter(Boolean).join(" · ");
+        const due = c.followUpDate && c.status !== "Resolved" ? (c.followUpDate < today ? " · ⚠ follow-up overdue " : " · follow up ") + fmtDate(c.followUpDate) : "";
+        return `
         <div class="record-row" data-type="communication" data-id="${escapeHtml(c.communicationId)}">
           <div>
             <div class="rr-title">${escapeHtml((c.message || "").slice(0, 80))}</div>
-            <div class="rr-meta">${escapeHtml(c.sender || "")}${c.recipient ? " → " + escapeHtml(c.recipient) : ""} · ${fmtDate(c.date)}</div>
+            <div class="rr-meta">${escapeHtml(who || c.recipient || "")} · by ${escapeHtml(c.sender || "")} · ${fmtDate(c.date)}${escapeHtml(due)}</div>
           </div>
-          <div class="rr-right"><span class="pill ${statusClass(c.status)}">${escapeHtml(c.status || "Open")}</span></div>
-        </div>`).join("")}
+          <div class="rr-right"><span class="pill ${statusClass(c.status)}">${escapeHtml(c.status === "Resolved" ? "Done" : "Open")}</span></div>
+        </div>`;
+      }).join("")}
     </div>`).join("");
 }
 document.getElementById("commBody").addEventListener("click", (e) => {
@@ -1907,7 +1887,7 @@ function createPrepTaskForDelivery(delivery) {
   cache.tasks.unshift(Object.assign({ taskId: "TASK-pending-" + Date.now(), pending: true }, taskFields));
   saveCache(cache);
   renderTasks();
-  renderPlanner();
+ 
   renderDashboard();
   enqueue("createTask", taskFields);
 }
@@ -1941,7 +1921,7 @@ function createFeedbackEmailTask(delivery) {
   cache.tasks.unshift(Object.assign({ taskId: "TASK-pending-" + Date.now(), pending: true }, taskFields));
   saveCache(cache);
   renderTasks();
-  renderPlanner();
+ 
   renderDashboard();
   enqueue("createTask", taskFields);
 }
@@ -2149,8 +2129,8 @@ function computeNotifications() {
   (cache.tasks || []).filter(t => isTaskOverdue(t) && notArchived(t)).forEach(t =>
     alerts.push({ kind: "Task Overdue", screen: "tasks", type: "task", id: t.taskId, text: t.title, severity: 1 }));
 
-  (cache.communications || []).filter(c => c.type === "Supplier Needs Follow-Up" && c.status !== "Resolved" && c.followUpDate && c.followUpDate <= today && notArchived(c)).forEach(c =>
-    alerts.push({ kind: "Supplier Follow-Up Due", screen: "communications", type: "communication", id: c.communicationId, text: (c.message || "").slice(0, 70), severity: 1 }));
+  (cache.communications || []).filter(c => c.status !== "Resolved" && c.followUpDate && c.followUpDate <= today && notArchived(c)).forEach(c =>
+    alerts.push({ kind: (c.contactType || "Conversation") + " Follow-Up Due", screen: "communications", type: "communication", id: c.communicationId, text: (c.recipient ? c.recipient + ": " : "") + (c.message || "").slice(0, 70), severity: 1 }));
 
   alerts.sort((a, b) => b.severity - a.severity);
   return alerts;
@@ -2471,9 +2451,12 @@ function buildRecordHtml(type, rec) {
       html += `<button class="btn primary" id="recordSaveBtn">Respond</button></div>`;
     }
   } else if (type === "communication") {
-    html += `<h3>${escapeHtml(rec.type)}</h3>`;
-    html += kv("Message", rec.message) + kv("Sender", rec.sender) + kv("Recipient", rec.recipient) + kv("Action Required", rec.actionRequired) + kv("Follow-up", fmtDate(rec.followUpDate)) + kv("Related Record", describeRelatedRecord(rec.relatedRecord));
-    html += `<label>Status</label><select id="editStatus">${["Open", "Resolved"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
+    html += `<h3>${escapeHtml(rec.recipient || rec.contactType || "Conversation")}</h3>`;
+    html += kv("About", rec.message) + kv("Who", rec.contactType) + kv("Channel", rec.channel) + kv("Needed From Manager", rec.actionRequired) + kv("Logged By", rec.sender) + kv("Date", fmtDate(rec.date));
+    const steps = COMM_TYPES.indexOf(rec.type) < 0 && rec.type ? COMM_TYPES.concat([rec.type]) : COMM_TYPES;
+    const current = rec.status === "Resolved" ? COMM_DONE : rec.type;
+    html += `<label>Next Step</label><select id="editStatus">${steps.map(s => `<option ${s === current ? "selected" : ""}>${escapeHtml(s)}</option>`).join("")}</select>`;
+    html += `<label>Follow-up Date</label><input type="date" id="editFollowUp" value="${escapeHtml(rec.followUpDate || "")}">`;
     html += `<button class="btn primary" id="recordSaveBtn">Update</button>`;
   } else if (type === "production") {
     html += `<h3>${escapeHtml(rec.product)}</h3>`;
@@ -2561,12 +2544,12 @@ function wireRecordModal(type, rec) {
       const patch = { status: newStatus };
       applyLocalPatch("tasks", "taskId", rec.taskId, patch);
       enqueue("updateTask", { taskId: rec.taskId, updatedBy: currentWorker, tier: currentTier, patch: patch });
-      renderTasks(); renderPlanner(); renderDashboard();
+      renderTasks(); renderDashboard();
     } else if (type === "event") {
       const patch = { status: newStatus };
       applyLocalPatch("calendarEvents", "eventId", rec.eventId, patch);
       enqueue("updateCalendarEvent", { eventId: rec.eventId, updatedBy: currentWorker, patch: patch });
-      renderCalendar(); renderPlanner(); renderDashboard();
+      renderCalendar(); renderDashboard();
     } else if (type === "attention") {
       const patch = { status: newStatus, directorResponse: document.getElementById("editResponse").value.trim() };
       applyLocalPatch("directorAttention", "attentionId", rec.attentionId, patch);
@@ -2586,11 +2569,14 @@ function wireRecordModal(type, rec) {
         }
       }
     } else if (type === "communication") {
-      const patch = { status: newStatus };
+      const wasNeedingManager = commNeedsManager(rec.type) && rec.status !== "Resolved";
+      const patch = { type: newStatus, status: newStatus === COMM_DONE ? "Resolved" : "Open", followUpDate: document.getElementById("editFollowUp").value };
       applyLocalPatch("communications", "communicationId", rec.communicationId, patch);
       enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: patch });
-      renderCommunications();
-      if (newStatus === "Resolved") resolveDirectorAttentionForProduction(rec.communicationId, "Auto-resolved — communication marked Resolved.");
+      renderCommunications(); renderCalendar(); renderDashboard();
+      const nowNeedsManager = commNeedsManager(patch.type) && patch.status !== "Resolved";
+      if (nowNeedsManager && !wasNeedingManager) flagManagerForCommunication(Object.assign({}, rec, patch));
+      if (wasNeedingManager && !nowNeedsManager) resolveDirectorAttentionForProduction(rec.communicationId, "Auto-resolved — conversation moved to: " + patch.type + ".");
     } else if (type === "production") {
       const readiness = {
         packagingReadiness: document.getElementById("editPackagingReadiness").value,
@@ -2759,10 +2745,7 @@ function pressPinKey(key) {
       // picks it up directly in startWorking() below.
       pendingManagerLogin = (enteredPin === ADMIN_PIN);
       showScreen("workerPrompt");
-      const last = localStorage.getItem(WORKER_KEY) || "";
-      const input = document.getElementById("workerNameInput");
-      input.value = last;
-      setTimeout(() => input.focus(), 50);
+      renderStaffPick();
     } else {
       document.getElementById("pinError").textContent = "Incorrect PIN";
       enteredPin = "";
@@ -2776,9 +2759,17 @@ document.getElementById("pinPad").addEventListener("click", (e) => {
   pressPinKey(btn.dataset.action || btn.dataset.n);
 });
 
-function startWorking() {
-  const name = document.getElementById("workerNameInput").value.trim();
-  if (!name) { document.getElementById("workerNameInput").focus(); return; }
+function renderStaffPick() {
+  const last = localStorage.getItem(WORKER_KEY) || "";
+  document.getElementById("staffPick").innerHTML = STAFF.map(n =>
+    `<button class="btn ${n === last ? "primary" : "dark"}" data-name="${n}">${n}</button>`).join("");
+}
+document.getElementById("staffPick").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-name]");
+  if (btn) startWorking(btn.dataset.name);
+});
+function startWorking(name) {
+  if (!name) return;
   currentWorker = name;
   currentTier = "Employee";
   localStorage.setItem(WORKER_KEY, name);
@@ -2798,8 +2789,12 @@ function startWorking() {
   renderInventoryLookup();
   syncInventory();
 }
-document.getElementById("startWorking").addEventListener("click", startWorking);
-document.getElementById("workerNameInput").addEventListener("keydown", (e) => { if (e.key === "Enter") startWorking(); });
+fillStaffSelects();
+// After any "Save" closes its form, fold its "More details" back up for next time.
+document.querySelectorAll('button[id^="save"][id$="Btn"]').forEach(btn => btn.addEventListener("click", () => {
+  const card = btn.closest(".card");
+  if (card && card.style.display === "none") card.querySelectorAll("details.more").forEach(d => d.open = false);
+}));
 
 // ---------- admin PIN gate (elevates the session to Manager tier) ----------
 let adminEnteredPin = "";
