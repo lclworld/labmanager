@@ -193,6 +193,7 @@ function handleFlagDirectorAttention(payload) {
   if (!payload.issue) return { status: "error", message: "Issue is required" };
   var id = createRecord("DirectorAttention", payload);
   logActivity(payload.flaggedBy, "Employee", "DirectorAttention", id, "Flagged", "", "Open", payload.issue);
+  notifyFlagRaised(id, payload);
   return { status: "ok", attentionId: id };
 }
 
