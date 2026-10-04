@@ -1,7 +1,7 @@
 // Bump this when the caching logic itself changes. Ordinary index.html edits
 // no longer need a bump: the shell is network-first, so every open fetches
 // the latest version and the cache is only the offline fallback.
-const CACHE_NAME = "lcl-oc-shell-v3";
+const CACHE_NAME = "lcl-oc-shell-v4";
 const SHELL_FILES = ["./index.html", "./manifest.json"];
 
 self.addEventListener("install", (event) => {
@@ -41,9 +41,16 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  const isShellFile =
-    req.mode === "navigate" ||
-    SHELL_FILES.some((f) => url.pathname.endsWith(f.replace("./", "")));
+  // Only the app's own page and manifest are the shell. Any other page in
+  // this folder (e.g. apps-script/copy.html) is passed straight through:
+  // treating every navigation as the app used to save that other page as
+  // the app's offline copy, so a slow or offline open showed it instead.
+  const scopePath = new URL(self.registration.scope).pathname;
+  const isAppPage = url.origin === self.location.origin &&
+    (url.pathname === scopePath || url.pathname === scopePath + "index.html");
+  const isShellFile = isAppPage ||
+    (url.origin === self.location.origin && SHELL_FILES.some((f) => url.pathname === scopePath + f.replace("./", "")));
+  if (req.mode === "navigate" && !isAppPage) return;
 
   if (isShellFile) {
     event.respondWith(
