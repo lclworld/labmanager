@@ -704,7 +704,20 @@ function loadQueue() {
   catch (e) { return []; }
 }
 function saveQueue(q) { localStorage.setItem(QUEUE_KEY, JSON.stringify(q)); }
+// Create actions and the cache array their new record lives in. enqueue()
+// stamps each create with its local placeholder ID (_localId — not a sheet
+// column, so the backend ignores it), and trySync() keeps that local record
+// on screen until its create has actually reached the Sheet. Without this,
+// anything added while a sync was already running vanished when that
+// sync's server data replaced the cache, until the next sync.
+const CREATE_ACTION_ARRAYS = { createTask: "tasks", createCalendarEvent: "calendarEvents", flagDirectorAttention: "directorAttention", createCommunication: "communications", createProduction: "production", createDelivery: "deliveries", createPurchase: "purchases" };
+const ARRAY_ID_KEYS = { tasks: "taskId", calendarEvents: "eventId", directorAttention: "attentionId", communications: "communicationId", production: "productionId", deliveries: "deliveryId", purchases: "purchaseId" };
 function enqueue(type, payload) {
+  const arr = CREATE_ACTION_ARRAYS[type];
+  if (arr && payload && !payload._localId) {
+    const rec = (loadCache()[arr] || []).find(r => r.pending && Object.keys(payload).every(k => r[k] === payload[k]));
+    if (rec) payload._localId = rec[ARRAY_ID_KEYS[arr]];
+  }
   const q = loadQueue();
   q.push({ id: Date.now() + "-" + Math.random().toString(36).slice(2), type: type, payload: payload });
   saveQueue(q);
@@ -792,15 +805,26 @@ async function trySync() {
       fetchJSON("getActivityLog")
     ]);
     const cache = loadCache();
+    const previous = loadCache();
     if (bootstrap.status === "ok") cache.counts = bootstrap.counts;
     if (tasksRes.status === "ok") cache.tasks = tasksRes.tasks;
     if (calendarRes.status === "ok") cache.calendarEvents = calendarRes.events;
     if (attnRes.status === "ok") cache.directorAttention = attnRes.items;
-    if (commsRes.status === "ok") cache.communications = commsRes.items;
+    if (commsRes.status === "ok") cache.communications = commsRes.items.map(normalizeCommunication);
     if (prodRes.status === "ok") cache.production = prodRes.records;
     if (delRes.status === "ok") cache.deliveries = delRes.deliveries;
     if (purRes.status === "ok") cache.purchases = purRes.purchases;
     if (logRes.status === "ok") cache.activityLog = logRes.entries;
+    // Keep records whose create is still queued (added during this sync, or
+    // not yet accepted by the server) instead of letting server data drop them.
+    loadQueue().forEach(item => {
+      const arr = CREATE_ACTION_ARRAYS[item.type];
+      const localId = item.payload && item.payload._localId;
+      if (!arr || !localId) return;
+      const idKey = ARRAY_ID_KEYS[arr];
+      const local = (previous[arr] || []).find(r => r[idKey] === localId);
+      if (local && !(cache[arr] || []).some(r => r[idKey] === localId)) cache[arr] = [local].concat(cache[arr] || []);
+    });
     cache.lastSynced = new Date().toISOString();
     saveCache(cache);
 
@@ -1380,6 +1404,15 @@ document.getElementById("attentionList").addEventListener("click", (e) => {
 // Communications are client and supplier conversations (Gmail, and
 // WhatsApp/Instagram via Beeper). "type" holds the conversation's next step;
 // older records keep their original types and still show, after these.
+// The sheet column is "Follow-up date". Older backends turn that header into
+// the key "followupDate" rather than "followUpDate", so every save sends both
+// and every read accepts either (a Date cell from an older backend can also
+// come back as a full timestamp; only its calendar day matters here).
+function normalizeCommunication(c) {
+  const raw = c.followUpDate || c.followupDate || "";
+  c.followUpDate = /^\d{4}-\d{2}-\d{2}/.test(String(raw)) ? String(raw).slice(0, 10) : raw;
+  return c;
+}
 const COMM_NEEDS_MANAGER = "Needs Manager Input";
 const COMM_DONE = "Done — No Action Needed";
 const COMM_TYPES = ["Needs Manager Input", "Follow-Up Needed", "Waiting For Their Reply", COMM_DONE];
@@ -1427,6 +1460,8 @@ document.getElementById("saveCommBtn").addEventListener("click", () => {
   renderDashboard();
   ["commRecipient", "commMessage", "commActionRequired", "commFollowUp"].forEach(id => document.getElementById(id).value = "");
   document.getElementById("commForm").style.display = "none";
+  fields.followupDate = fields.followUpDate;
+  fields._localId = localComm.communicationId;
   enqueue("createCommunication", fields);
   if (commNeedsManager(localComm.type)) flagManagerForCommunication(localComm);
 });
@@ -2572,7 +2607,7 @@ function wireRecordModal(type, rec) {
       const wasNeedingManager = commNeedsManager(rec.type) && rec.status !== "Resolved";
       const patch = { type: newStatus, status: newStatus === COMM_DONE ? "Resolved" : "Open", followUpDate: document.getElementById("editFollowUp").value };
       applyLocalPatch("communications", "communicationId", rec.communicationId, patch);
-      enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: patch });
+      enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: Object.assign({ followupDate: patch.followUpDate }, patch) });
       renderCommunications(); renderCalendar(); renderDashboard();
       const nowNeedsManager = commNeedsManager(patch.type) && patch.status !== "Resolved";
       if (nowNeedsManager && !wasNeedingManager) flagManagerForCommunication(Object.assign({}, rec, patch));

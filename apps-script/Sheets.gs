@@ -80,8 +80,12 @@ function ensureAllSheets() {
 }
 
 // "Director attention flag" -> "directorAttentionFlag"
+// A hyphen separates words ("Follow-up date" -> "followUpDate", the key the
+// frontend sends); before this it was dropped, giving "followupDate", so
+// follow-up dates were never written.
 function headerToKey(header) {
   return header
+    .replace(/-/g, " ")
     .replace(/[^a-zA-Z0-9 ]/g, "")
     .trim()
     .split(/\s+/)
