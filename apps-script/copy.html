@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OC Script Files</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Urbanist:wght@400;500;600;700;800&display=swap">
+<style>
+/* One-tap copy for the Apps Script files, in the Operations Centre look. Files are loaded from this same folder, so they're always the latest. */
+:root {
+  --bg: #FBF8EF; --card: #FFFFFF; --fg: #17130F; --brown: #5B4239;
+  --border: rgba(91,66,57,0.16); --orange: #FF914D; --orange-soft: rgba(255,145,77,0.16);
+  --yellow: #FFDE59; --on-yellow: #17130F; --green: #2E7D4F;
+  --shadow: 0 6px 20px rgba(23,19,15,0.07);
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "Urbanist", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17130F; --card: #221C17; --fg: #FBF8EF; --brown: #C9B3A8; --border: rgba(251,248,239,0.12);
+    --orange-soft: rgba(255,145,77,0.18); --green: #6FCF97; --shadow: 0 6px 20px rgba(0,0,0,0.35); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #17130F; --card: #221C17; --fg: #FBF8EF; --brown: #C9B3A8; --border: rgba(251,248,239,0.12);
+  --orange-soft: rgba(255,145,77,0.18); --green: #6FCF97; --shadow: 0 6px 20px rgba(0,0,0,0.35); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.55; }
+.wrap { max-width: 640px; margin-inline: auto; padding: 24px 16px 56px; }
+.brand { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.mark { height: 30px; width: 30px; border-radius: 8px; background: var(--fg); color: var(--bg); display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-weight: 800; font-size: 0.9rem; }
+.word { font-family: var(--font-display); font-weight: 800; font-size: 1.1rem; }
+.word span { color: var(--orange); font-style: italic; }
+h1 { font-family: var(--font-display); font-weight: 800; font-size: 1.6rem; line-height: 1.15; margin: 0; }
+.sub { color: var(--brown); font-size: 0.9rem; margin: 6px 0 18px; }
+.file { background: var(--card); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 16px; margin-bottom: 12px; }
+.file-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.name { font-family: var(--font-display); font-weight: 800; font-size: 1.15rem; }
+.meta { font-size: 0.75rem; color: var(--brown); font-weight: 600; }
+.what { font-size: 0.85rem; color: var(--brown); margin: 4px 0 12px; }
+button.copy { width: 100%; font: inherit; font-weight: 800; font-size: 1rem; padding: 14px; border-radius: 12px; border: 1.5px solid var(--orange); background: var(--orange); color: #17130F; cursor: pointer; }
+button.copy:disabled { opacity: 0.5; cursor: default; }
+button.copy.done { background: transparent; color: var(--green); border-color: var(--green); }
+button:focus-visible { outline: 3px solid var(--orange); outline-offset: 2px; }
+.status { font-size: 0.8rem; margin-top: 8px; min-height: 1.2em; color: var(--brown); }
+.status.ok { color: var(--green); font-weight: 700; }
+.steps { margin-top: 18px; padding: 14px 16px; background: var(--yellow); color: var(--on-yellow); border-radius: 16px; font-size: 0.88rem; }
+.steps ol { margin: 6px 0 0; padding-left: 20px; }
+.steps li { margin: 4px 0; }
+textarea.fallback { position: fixed; top: -1000px; left: 0; opacity: 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><div class="mark">L</div><div class="word">LCL <span>Operations Centre</span></div></div>
+  <h1>Copy Script Files</h1>
+  <p class="sub">Tap a button to copy that whole file, then paste it into Apps Script over everything that's there. The line count lets you check nothing was cut off.</p>
+  <div id="files"></div>
+  <div class="steps"><b>How to paste</b>
+    <ol>
+      <li>In the Google Sheet, open <b>Extensions → Apps Script</b>.</li>
+      <li>Click the file with the same name on the left (make it with <b>+</b> if it's missing).</li>
+      <li>Click inside the code, press <b>Ctrl/Cmd + A</b>, then paste.</li>
+      <li>Check the last line in Apps Script matches the one shown here, then save.</li>
+      <li>Finish with <b>Deploy → Manage deployments → ✏️ → New version → Deploy</b>.</li>
+    </ol>
+  </div>
+</div>
+<script>
+// [file name, what it is]
+var FILES = [["Code.gs","The main file: saves and loads everything."],["Sheets.gs","Sheet layout: adds the Who and Channel columns and saves follow-up dates."],["Telegram.gs","Sends the Telegram alert when something is flagged."]];
+var list = document.getElementById("files");
+FILES.forEach(function (f) {
+  var card = document.createElement("div");
+  card.className = "file";
+  card.innerHTML = '<div class="file-head"><div class="name"></div><div class="meta">Loading…</div></div>' +
+    '<div class="what"></div><button class="copy" disabled>Copy</button><div class="status"></div>';
+  card.querySelector(".name").textContent = f[0];
+  card.querySelector(".what").textContent = f[1];
+  list.appendChild(card);
+  var btn = card.querySelector("button"), meta = card.querySelector(".meta"), status = card.querySelector(".status");
+  var text = "";
+  // cache: "no-store" so this always copies the version just pushed, not an old saved copy.
+  fetch(f[0] + "?v=" + Date.now(), { cache: "no-store" }).then(function (r) {
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.text();
+  }).then(function (t) {
+    text = t;
+    var lines = t.replace(/\n+$/, "").split("\n");
+    meta.textContent = lines.length + " lines";
+    status.textContent = "Last line: " + lines[lines.length - 1].trim();
+    btn.disabled = false;
+    btn.textContent = "Copy " + f[0];
+  }).catch(function (err) {
+    meta.textContent = "";
+    status.textContent = "Couldn't load this file (" + err.message + "). Check your connection and reload.";
+  });
+  btn.addEventListener("click", function () {
+    copyText(text).then(function () {
+      btn.classList.add("done");
+      btn.textContent = "Copied ✓";
+      status.className = "status ok";
+      status.textContent = "Copied all " + text.replace(/\n+$/, "").split("\n").length + " lines. Now paste it into " + f[0] + ".";
+      setTimeout(function () { btn.classList.remove("done"); btn.textContent = "Copy " + f[0] + " again"; }, 4000);
+    }).catch(function () {
+      status.className = "status";
+      status.textContent = "Your browser blocked copying. Try again, or open this page in Chrome or Safari.";
+    });
+  });
+});
+function copyText(t) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t);
+  return new Promise(function (resolve, reject) {
+    var ta = document.createElement("textarea");
+    ta.className = "fallback"; ta.value = t; document.body.appendChild(ta);
+    ta.select(); ta.setSelectionRange(0, t.length);
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    ok ? resolve() : reject();
+  });
+}
+</script>
+</body>
+</html>
