@@ -775,36 +775,49 @@ async function trySync() {
       }
       if (i < queue.length - 1) await new Promise(r => setTimeout(r, 250));
     }
-    const [bootstrap, tasksRes, calendarRes, attnRes, commsRes, prodRes, delRes, purRes, logRes] = await Promise.all([
-      fetchJSON("getBootstrap"),
-      fetchJSON("getTasks"),
-      fetchJSON("getCalendar"),
-      fetchJSON("getDirectorAttention"),
-      fetchJSON("getCommunications"),
-      fetchJSON("getProduction"),
-      fetchJSON("getDeliveries"),
-      fetchJSON("getPurchases"),
-      fetchJSON("getActivityLog")
-    ]);
+    // Each of these 9 reads is applied independently (via allSettled, not
+    // Promise.all) — one flaky request (a cold backend, a weak connection)
+    // used to throw the whole batch away and leave every number on that
+    // device frozen at its last successful sync, even though the other 8
+    // reads had actually succeeded. Now a single failure only leaves that
+    // one data type stale for this cycle; it just retries again in 60s.
+    const reads = [
+      ["counts", "getBootstrap", r => r.counts],
+      ["tasks", "getTasks", r => r.tasks],
+      ["calendarEvents", "getCalendar", r => r.events],
+      ["directorAttention", "getDirectorAttention", r => r.items],
+      ["communications", "getCommunications", r => r.items],
+      ["production", "getProduction", r => r.records],
+      ["deliveries", "getDeliveries", r => r.deliveries],
+      ["purchases", "getPurchases", r => r.purchases],
+      ["activityLog", "getActivityLog", r => r.entries]
+    ];
+    const settled = await Promise.allSettled(reads.map(r => fetchJSON(r[1])));
     const cache = loadCache();
-    if (bootstrap.status === "ok") cache.counts = bootstrap.counts;
-    if (tasksRes.status === "ok") cache.tasks = tasksRes.tasks;
-    if (calendarRes.status === "ok") cache.calendarEvents = calendarRes.events;
-    if (attnRes.status === "ok") cache.directorAttention = attnRes.items;
-    if (commsRes.status === "ok") cache.communications = commsRes.items;
-    if (prodRes.status === "ok") cache.production = prodRes.records;
-    if (delRes.status === "ok") cache.deliveries = delRes.deliveries;
-    if (purRes.status === "ok") cache.purchases = purRes.purchases;
-    if (logRes.status === "ok") cache.activityLog = logRes.entries;
-    cache.lastSynced = new Date().toISOString();
-    saveCache(cache);
+    let anyOk = false;
+    let anyFailed = false;
+    settled.forEach((outcome, i) => {
+      const [cacheKey, action, extract] = reads[i];
+      if (outcome.status === "fulfilled" && outcome.value && outcome.value.status === "ok") {
+        cache[cacheKey] = extract(outcome.value);
+        anyOk = true;
+      } else {
+        anyFailed = true;
+        lastSyncError = action + ": " + (outcome.status === "rejected" ? outcome.reason.message : (outcome.value.message || "backend error"));
+      }
+    });
+    if (anyOk) {
+      cache.lastSynced = new Date().toISOString();
+      saveCache(cache);
+    }
 
     // Every cached record now carries the server's own ID, which never
     // contains "-pending-". Drop any leftover queued action still aimed at
     // a placeholder ID automatically, instead of leaving a permanent,
-    // unfixable red banner for someone to chase down by hand.
-    const allFetchesOk = [bootstrap, tasksRes, calendarRes, attnRes, commsRes, prodRes, delRes, purRes, logRes].every(r => r.status === "ok");
-    if (allFetchesOk) {
+    // unfixable red banner for someone to chase down by hand. Only once
+    // every read succeeded — a partial resync can't prove an ID is really
+    // orphaned instead of just not-yet-refreshed.
+    if (!anyFailed) {
       const before = loadQueue();
       const kept = before.filter(item => !PENDING_ID_RE.test(String(queueItemTargetId(item))));
       if (kept.length !== before.length) {
