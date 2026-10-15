@@ -1222,9 +1222,11 @@ function collectAllDatedItems() {
   (cache.purchases || []).forEach(p => {
     items.push({ kind: "Purchase", type: "purchase", id: p.purchaseId, title: p.item, date: p.expectedArrival || "", meta: (p.supplier || "") + " · Expected arrival", status: p.status, archived: p.archived === "Yes" });
   });
-  (cache.communications || []).filter(c => c.followUpDate).forEach(c => {
-    items.push({ kind: "Follow-up", type: "communication", id: c.communicationId, title: "Follow up: " + (c.recipient || (c.message || "").slice(0, 40)), date: c.followUpDate, meta: [c.contactType, c.channel].filter(Boolean).join(" · ") || "Conversation", status: c.status === "Resolved" ? "Done" : c.type, archived: c.archived === "Yes" });
-  });
+  if (!communicationsRestricted()) {
+    (cache.communications || []).filter(c => c.followUpDate).forEach(c => {
+      items.push({ kind: "Follow-up", type: "communication", id: c.communicationId, title: "Follow up: " + (c.recipient || (c.message || "").slice(0, 40)), date: c.followUpDate, meta: [c.contactType, c.channel].filter(Boolean).join(" · ") || "Conversation", status: c.status === "Resolved" ? "Done" : c.type, archived: c.archived === "Yes" });
+    });
+  }
   (cache.directorAttention || []).forEach(a => {
     items.push({ kind: "Manager Attention", type: "attention", id: a.attentionId, title: (a.issue || "").slice(0, 60), date: a.deadline || "", meta: "Deadline · " + (a.priority || "Normal"), status: a.status, archived: a.archived === "Yes" });
   });
@@ -2201,8 +2203,10 @@ function computeNotifications() {
   (cache.tasks || []).filter(t => isTaskOverdue(t) && notArchived(t)).forEach(t =>
     alerts.push({ kind: "Task Overdue", screen: "tasks", type: "task", id: t.taskId, text: t.title, severity: 1 }));
 
-  (cache.communications || []).filter(c => c.status !== "Resolved" && c.followUpDate && c.followUpDate <= today && notArchived(c)).forEach(c =>
-    alerts.push({ kind: (c.contactType || "Conversation") + " Follow-Up Due", screen: "communications", type: "communication", id: c.communicationId, text: (c.recipient ? c.recipient + ": " : "") + (c.message || "").slice(0, 70), severity: 1 }));
+  if (!communicationsRestricted()) {
+    (cache.communications || []).filter(c => c.status !== "Resolved" && c.followUpDate && c.followUpDate <= today && notArchived(c)).forEach(c =>
+      alerts.push({ kind: (c.contactType || "Conversation") + " Follow-Up Due", screen: "communications", type: "communication", id: c.communicationId, text: (c.recipient ? c.recipient + ": " : "") + (c.message || "").slice(0, 70), severity: 1 }));
+  }
 
   alerts.sort((a, b) => b.severity - a.severity);
   return alerts;
@@ -2280,6 +2284,7 @@ function renderHistory() {
 
   if (historyTab === "activity") {
     let entries = (cache.activityLog || []).slice().sort((a, b) => (b.timestamp || "").localeCompare(a.timestamp || ""));
+    if (communicationsRestricted()) entries = entries.filter(e => e.recordType !== "Communication");
     if (q) entries = entries.filter(e => [e.recordId, e.recordType, e.user, e.action, e.details, e.newStatus].filter(Boolean).join(" ").toLowerCase().includes(q));
     if (!entries.length) { body.innerHTML = '<div class="empty-state">No activity logged yet.</div>'; return; }
     body.innerHTML = entries.slice(0, 200).map(e => `
@@ -2293,7 +2298,8 @@ function renderHistory() {
   }
 
   const results = [];
-  HISTORY_SOURCES.forEach(src => {
+  const sources = communicationsRestricted() ? HISTORY_SOURCES.filter(src => src.key !== "communications") : HISTORY_SOURCES;
+  sources.forEach(src => {
     (cache[src.key] || []).forEach(r => {
       if (q && !recordMatchesQuery(r, src.idKey, q)) return;
       results.push({ type: src.type, id: r[src.idKey], title: src.title(r), meta: src.meta(r) });
@@ -2471,6 +2477,7 @@ function kv(k, v) {
   return `<div class="kv"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`;
 }
 function openRecordModal(type, id) {
+  if (type === "communication" && communicationsRestricted()) return;
   if (type === "invbatch") {
     const batch = findInventoryBatch(id);
     if (!batch) return;
@@ -2765,6 +2772,7 @@ function wireRecordModal(type, rec) {
 
 // ---------- navigation ----------
 function showScreen(name) {
+  if (name === "communications" && communicationsRestricted()) return;
   document.querySelectorAll(".screen").forEach(s => s.classList.toggle("active", s.id === name));
   document.querySelectorAll(".sidebar .nav-item[data-screen]").forEach(n => n.classList.toggle("active", n.dataset.screen === name));
   document.querySelectorAll(".tab[data-screen]").forEach(t => t.classList.toggle("active", t.dataset.screen === name));
@@ -2840,6 +2848,26 @@ document.getElementById("staffPick").addEventListener("click", (e) => {
   const btn = e.target.closest("button[data-name]");
   if (btn) startWorking(btn.dataset.name);
 });
+// Communications holds client/supplier conversations that Rosemary and
+// Gloria specifically shouldn't see — set by name, not by tier, since
+// every other Employee action stays open to them. Enforced client-side
+// only, same as every other access boundary in this app (PIN tier
+// included) — a UI restriction, not a real security wall.
+const COMMS_RESTRICTED_STAFF = ["Rosemary", "Gloria"];
+function communicationsRestricted() {
+  return COMMS_RESTRICTED_STAFF.includes(currentWorker);
+}
+function applyStaffRestrictions() {
+  const blocked = communicationsRestricted();
+  document.querySelectorAll('[data-screen="communications"]').forEach(el => el.style.display = blocked ? "none" : "");
+  const commsCard = document.querySelector('.stat[data-nav-screen="communications"]');
+  const row = commsCard && commsCard.closest(".stat-row");
+  if (row) {
+    row.style.display = blocked ? "none" : "";
+    const heading = row.previousElementSibling;
+    if (heading && heading.classList.contains("section-title")) heading.style.display = blocked ? "none" : "";
+  }
+}
 function startWorking(name) {
   if (!name) return;
   currentWorker = name;
@@ -2851,6 +2879,7 @@ function startWorking(name) {
   document.getElementById("appShell").classList.add("unlocked");
   appUnlocked = true;
   if (pendingManagerLogin) { becomeManager(); pendingManagerLogin = false; }
+  applyStaffRestrictions();
   showScreen("dashboard");
   enqueue("logUser", { name: currentWorker, tier: currentTier });
   loadCache();

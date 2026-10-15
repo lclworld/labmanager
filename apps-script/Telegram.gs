@@ -1,8 +1,13 @@
 /**
  * LCL Operations Centre — Telegram.gs
  *
- * Sends a Telegram message when something is flagged for Manager
- * attention, so it reaches the phone even when the app is closed.
+ * Two kinds of Telegram messages:
+ *  - Instant: the moment something is flagged for Manager attention, so
+ *    it reaches the phone even when the app is closed (sendFlagMessage).
+ *  - Daily digest: everything logged to OC — every create/update across
+ *    every record type, not just flags — summarized into one message a
+ *    day instead of pinging on every single save (sendDailyDigest). Needs
+ *    a one-time trigger; see setupDailyDigestTrigger below and SETUP.md.
  *
  * The bot token and chat IDs live in Script Properties (Project Settings →
  * Script Properties), never in this file:
@@ -66,6 +71,58 @@ function sendFlagMessage(id, p) {
   notifyTelegram(lines.join("\n"));
 }
 
+// ---------- Daily digest ----------
+
+// Fired by the trigger setupDailyDigestTrigger() installs. Summarizes every
+// ActivityLog row from the last 24 hours — every record type, not just
+// flags — grouped by what kind of record it was and what happened to it.
+// A quiet day sends one short "nothing logged" line instead of staying
+// silent, so silence never has to be read as "the digest broke."
+function sendDailyDigest() {
+  try {
+    var since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    var recent = getAllRows("ActivityLog").filter(function (r) {
+      return r.timestamp && new Date(r.timestamp) >= since;
+    });
+    if (!recent.length) {
+      notifyTelegram("📋 <b>Daily Digest</b>\nNothing logged in OC in the last 24 hours.");
+      return;
+    }
+    var byType = {};
+    recent.forEach(function (r) {
+      var t = r.recordType || "Other";
+      byType[t] = byType[t] || { count: 0, actions: {} };
+      byType[t].count++;
+      var a = r.action || "Other";
+      byType[t].actions[a] = (byType[t].actions[a] || 0) + 1;
+    });
+    var lines = ["📋 <b>Daily Digest</b> — " + recent.length + " item(s) logged in the last 24 hours", ""];
+    Object.keys(byType).sort().forEach(function (t) {
+      var info = byType[t];
+      var breakdown = Object.keys(info.actions).map(function (a) {
+        return info.actions[a] + " " + a.toLowerCase();
+      }).join(", ");
+      lines.push("• <b>" + escapeTelegram(t) + "</b>: " + info.count + " (" + escapeTelegram(breakdown) + ")");
+    });
+    lines.push("", '<a href="' + OC_APP_URL + '">Open Operations Centre</a>');
+    notifyTelegram(lines.join("\n"));
+  } catch (err) {
+    console.warn("Daily digest failed: " + err.message);
+  }
+}
+
+// Run once from the script editor to schedule the digest (see SETUP.md,
+// "Daily digest"). Safe to re-run — it clears any digest trigger this
+// project already has first, so re-running to change the hour never
+// leaves a duplicate behind.
+function setupDailyDigestTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "sendDailyDigest") ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger("sendDailyDigest").timeBased().everyDays(1).atHour(7).create();
+  console.log("Daily digest scheduled for ~7am daily.");
+}
+
 // ---------- Setup helpers: run these from the script editor ----------
 
 // Step 1: after messaging your bot from Telegram, run this. It logs the chat
@@ -93,4 +150,10 @@ function telegramFindChatIds() {
 // Step 2: sends a test message to every saved chat.
 function telegramTest() {
   notifyTelegram("✅ <b>LCL Operations Centre</b>\nTelegram alerts are working. You'll get a message here whenever something is flagged.");
+}
+
+// Optional: sends today's real digest right now, without waiting for the
+// trigger — useful to see what it looks like before scheduling it.
+function telegramDigestTest() {
+  sendDailyDigest();
 }

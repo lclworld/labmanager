@@ -53,3 +53,22 @@ Properties below are set, nothing is sent and flags work as before.
 
 To add someone later: they message the bot, you run `telegramFindChatIds`
 to see their ID, then add it to `TELEGRAM_CHAT_IDS` (comma-separated).
+
+### Daily digest
+
+On top of the instant flag alerts above, a once-a-day Telegram message
+summarizes *everything* logged to OC in the last 24 hours — every task,
+production update, delivery, purchase, communication — grouped by record
+type instead of pinging on every single save.
+
+1. Make sure steps 1–7 above are already done (bot token and chat IDs set).
+2. In the Apps Script editor, choose `telegramDigestTest` in the function
+   menu and click **Run** to see what a digest looks like right now,
+   without waiting a day.
+3. Choose `setupDailyDigestTrigger` and click **Run** once. This schedules
+   the digest for ~7am daily. Re-running it is safe (it replaces the old
+   schedule instead of adding a second one) — edit the `.atHour(7)` line
+   in `Telegram.gs` first if you want a different time, then re-run.
+
+A quiet 24 hours still sends one short "nothing logged" message, so you
+always know the digest itself is still working.
