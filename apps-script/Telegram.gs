@@ -119,8 +119,11 @@ function setupDailyDigestTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === "sendDailyDigest") ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger("sendDailyDigest").timeBased().everyDays(1).atHour(7).create();
-  console.log("Daily digest scheduled for ~7am daily.");
+  // atHour + nearMinute is Apps Script's own way to request a specific
+  // half-hour — triggers don't fire at the exact minute, but within about
+  // 15 minutes of it, same as any other time-based trigger here.
+  ScriptApp.newTrigger("sendDailyDigest").timeBased().everyDays(1).atHour(17).nearMinute(30).create();
+  console.log("Daily digest scheduled for ~5:30pm daily (the project's own time zone — Project Settings → General → Time zone).");
 }
 
 // ---------- Setup helpers: run these from the script editor ----------

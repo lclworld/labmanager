@@ -66,9 +66,12 @@ type instead of pinging on every single save.
    menu and click **Run** to see what a digest looks like right now,
    without waiting a day.
 3. Choose `setupDailyDigestTrigger` and click **Run** once. This schedules
-   the digest for ~7am daily. Re-running it is safe (it replaces the old
-   schedule instead of adding a second one) — edit the `.atHour(7)` line
-   in `Telegram.gs` first if you want a different time, then re-run.
+   the digest for ~5:30pm daily, in whatever time zone this Apps Script
+   project is set to (**Project Settings → General → Time zone** — set it
+   there first if it isn't already yours). Re-running the function is
+   safe (it replaces the old schedule instead of adding a second one) —
+   edit the `.atHour(17).nearMinute(30)` line in `Telegram.gs` first if
+   you ever want a different time, then re-run.
 
 A quiet 24 hours still sends one short "nothing logged" message, so you
 always know the digest itself is still working.
