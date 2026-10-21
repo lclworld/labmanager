@@ -2539,7 +2539,8 @@ function buildRecordHtml(type, rec) {
     html += `<button class="btn primary" id="recordSaveBtn">Update</button>`;
   } else if (type === "production") {
     html += `<h3>${escapeHtml(rec.product)}</h3>`;
-    html += kv("Client", rec.client) + kv("Batch Size", rec.batchSize) + kv("Planned Date", fmtDate(rec.plannedDate)) + kv("Assigned Staff", rec.assignedStaff) + kv("Inventory Reference", rec.inventoryReference) + kv("Notes", rec.notes);
+    html += kv("Client", rec.client) + kv("Batch Size", rec.batchSize) + kv("Assigned Staff", rec.assignedStaff) + kv("Inventory Reference", rec.inventoryReference) + kv("Notes", rec.notes);
+    html += `<label>Planned Date</label><input type="date" id="editPlannedDate" value="${escapeHtml(rec.plannedDate || "")}">`;
     if (rec.blocker) html += `<div class="blocker-banner">⚠ ${escapeHtml(rec.blocker)}</div>`;
     html += buildProductionSheetHtml(rec.inventoryReference);
     html += `<div class="info-box"><div class="ib-label">Packaging, Label, Box &amp; Paperwork Readiness</div>`;
@@ -2671,6 +2672,7 @@ function wireRecordModal(type, rec) {
       const readinessStatus = computeInitialProductionStatus(readiness);
       const finalStatus = (newStatus === "READY" || newStatus === "BLOCKED") ? readinessStatus : newStatus;
       const patch = Object.assign({}, readiness, {
+        plannedDate: document.getElementById("editPlannedDate").value,
         productionStatus: finalStatus,
         blocker: finalStatus === "BLOCKED" ? describeMissingReadiness(readiness) : "",
         qcStatus: document.getElementById("editQcStatus").value,
