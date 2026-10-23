@@ -1105,6 +1105,7 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
     priority: document.getElementById("taskPriority").value,
     assignedTo: document.getElementById("taskAssignedTo").value.trim(),
     createdBy: currentWorker,
+    tier: currentTier,
     createdDate: now,
     dueDate: document.getElementById("taskDueDate").value,
     completedDate: "",
@@ -1141,6 +1142,7 @@ function flagDirectorForTask(task) {
     whatIsNeededFromDirector: "Review and respond.",
     missingInformation: task.missingInformation || "",
     flaggedBy: currentWorker,
+    tier: currentTier,
     dateFlagged: now,
     priority: task.priority === "Urgent" || task.priority === "High" ? task.priority : "Normal",
     deadline: task.dueDate || "",
@@ -1266,6 +1268,7 @@ document.getElementById("saveEventBtn").addEventListener("click", () => {
     notes: document.getElementById("eventNotes").value.trim(),
     status: "Scheduled",
     createdBy: currentWorker,
+    tier: currentTier,
     lastUpdated: now
   };
   const cache = loadCache();
@@ -1391,6 +1394,7 @@ document.getElementById("saveAttentionBtn").addEventListener("click", () => {
     whatIsNeededFromDirector: document.getElementById("attnNeeded").value.trim(),
     missingInformation: document.getElementById("attnMissing").value.trim(),
     flaggedBy: currentWorker,
+    tier: currentTier,
     dateFlagged: now,
     priority: document.getElementById("attnPriority").value,
     deadline: document.getElementById("attnDeadline").value,
@@ -1485,6 +1489,7 @@ document.getElementById("saveCommBtn").addEventListener("click", () => {
     status: type === COMM_DONE ? "Resolved" : "Open",
     followUpDate: commHasFollowUp(type) ? document.getElementById("commFollowUp").value : "",
     createdBy: currentWorker,
+    tier: currentTier,
     lastUpdated: now,
     contactType: document.getElementById("commContactType").value,
     channel: document.getElementById("commChannel").value
@@ -1520,6 +1525,7 @@ function flagManagerForCommunication(comm) {
     whatIsNeededFromDirector: comm.actionRequired || "Review this conversation and respond.",
     missingInformation: "",
     flaggedBy: currentWorker,
+    tier: currentTier,
     dateFlagged: now,
     priority: "Normal",
     deadline: comm.followUpDate || "",
@@ -1635,6 +1641,7 @@ function pageDirectorForBlockedProduction(rec) {
     whatIsNeededFromDirector: neededByStatus[rec.productionStatus] || "Review and advise.",
     missingInformation: "",
     flaggedBy: currentWorker,
+    tier: currentTier,
     dateFlagged: now,
     priority: "High",
     deadline: rec.plannedDate || "",
@@ -1683,6 +1690,7 @@ function flagManagerForFailedQc(rec) {
     whatIsNeededFromDirector: "Review the QC failure and decide whether to rework, scrap, or proceed with an exception.",
     missingInformation: "",
     flaggedBy: currentWorker,
+    tier: currentTier,
     dateFlagged: now,
     priority: "High",
     deadline: "",
@@ -1716,6 +1724,7 @@ function flagManagerForUnreviewedCompletion(rec) {
     whatIsNeededFromDirector: "Review the completed batch and set Manager Review to Reviewed (or Needs Changes).",
     missingInformation: "",
     flaggedBy: currentWorker,
+    tier: currentTier,
     dateFlagged: now,
     priority: "Normal",
     deadline: "",
@@ -1758,6 +1767,7 @@ document.getElementById("saveProductionBtn").addEventListener("click", () => {
     directorReviewStatus: "Not Reviewed",
     notes: document.getElementById("prodNotes").value.trim(),
     createdBy: currentWorker,
+    tier: currentTier,
     createdDate: now,
     lastUpdated: now
   };
@@ -1917,6 +1927,7 @@ document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
     relatedProduction: document.getElementById("delRelatedProduction").dataset.productionId || "",
     pifEmailed: document.getElementById("delPifEmailed").checked ? "Yes" : "No",
     createdBy: currentWorker,
+    tier: currentTier,
     createdDate: now,
     lastUpdated: now
   };
@@ -1946,6 +1957,7 @@ function createPrepTaskForDelivery(delivery) {
     priority: "Normal",
     assignedTo: "",
     createdBy: currentWorker,
+    tier: currentTier,
     createdDate: now,
     dueDate: delivery.deliveryDate,
     completedDate: "",
@@ -1980,6 +1992,7 @@ function createFeedbackEmailTask(delivery) {
     priority: "Normal",
     assignedTo: "",
     createdBy: currentWorker,
+    tier: currentTier,
     createdDate: now,
     dueDate: due.toISOString().slice(0, 10),
     completedDate: "",
@@ -2027,6 +2040,7 @@ function createIncomingDeliveryForPurchase(purchase) {
     notes: "Auto-created — purchase " + (purchase.purchaseId || "") + " (" + (purchase.item || "") + ") marked " + purchase.status + ".",
     relatedPurchase: purchase.purchaseId || "",
     createdBy: currentWorker,
+    tier: currentTier,
     createdDate: now,
     lastUpdated: now
   };
@@ -2065,6 +2079,7 @@ function flagDirectorForPurchaseApproval(purchase) {
     whatIsNeededFromDirector: "Approve or reject this purchase.",
     missingInformation: "",
     flaggedBy: currentWorker,
+    tier: currentTier,
     dateFlagged: now,
     priority: "Normal",
     deadline: "",
@@ -2133,6 +2148,7 @@ document.getElementById("savePurchaseBtn").addEventListener("click", () => {
     status: "Need Identified",
     notes: document.getElementById("purNotes").value.trim(),
     createdBy: currentWorker,
+    tier: currentTier,
     createdDate: now,
     lastUpdated: now
   };
@@ -2291,7 +2307,7 @@ function renderHistory() {
       <div class="record-row" style="cursor:default;">
         <div>
           <div class="rr-title">${escapeHtml(e.recordType)} ${escapeHtml(e.recordId)} — ${escapeHtml(e.action)}</div>
-          <div class="rr-meta">${escapeHtml(e.user || "")} · ${fmtDate(e.timestamp)}${e.previousStatus || e.newStatus ? " · " + escapeHtml(e.previousStatus || "") + " → " + escapeHtml(e.newStatus || "") : ""}</div>
+          <div class="rr-meta">${escapeHtml(e.user || "Unknown")}${e.tier === "Manager" ? " <b>(Manager)</b>" : ""} · ${fmtDate(e.timestamp)}${e.previousStatus || e.newStatus ? " · " + escapeHtml(e.previousStatus || "") + " → " + escapeHtml(e.newStatus || "") : ""}</div>
         </div>
       </div>`).join("");
     return;
@@ -2318,11 +2334,22 @@ document.getElementById("historyBody").addEventListener("click", (e) => {
 
 // Renders a record's own slice of the Activity Log inside its modal —
 // Section 18's "opening a record shows its full history" requirement.
+// Built by hand instead of kv() (which escapes its whole value as plain
+// text) so a Manager's own entries can carry a visible "(Manager)" tag —
+// without it, staff seeing an unexplained change with no name on it have
+// no way to tell it was the Manager and not another employee, which is
+// exactly what leads someone to "fix" it back by reverting a deliberate
+// Manager edit.
 function buildRecordHistoryHtml(recordId) {
   const cache = loadCache();
   const entries = (cache.activityLog || []).filter(e => e.recordId === recordId).sort((a, b) => (a.timestamp || "").localeCompare(b.timestamp || ""));
   if (!entries.length) return "";
-  const rows = entries.map(e => kv(fmtDate(e.timestamp), e.action + (e.newStatus ? " → " + e.newStatus : ""))).join("");
+  const rows = entries.map(e => {
+    const what = escapeHtml(e.action + (e.newStatus ? " → " + e.newStatus : ""));
+    const who = escapeHtml(e.user || "Unknown");
+    const tag = e.tier === "Manager" ? " <b>(Manager)</b>" : "";
+    return `<div class="kv"><div class="k">${escapeHtml(fmtDate(e.timestamp))}</div><div class="v">${what} — ${who}${tag}</div></div>`;
+  }).join("");
   return `<div class="info-box"><div class="ib-label">History</div>${rows}</div>`;
 }
 
@@ -2628,7 +2655,7 @@ function wireRecordModal(type, rec) {
     } else if (type === "event") {
       const patch = { status: newStatus };
       applyLocalPatch("calendarEvents", "eventId", rec.eventId, patch);
-      enqueue("updateCalendarEvent", { eventId: rec.eventId, updatedBy: currentWorker, patch: patch });
+      enqueue("updateCalendarEvent", { eventId: rec.eventId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderCalendar(); renderDashboard();
     } else if (type === "attention") {
       const patch = { status: newStatus, directorResponse: document.getElementById("editResponse").value.trim() };
@@ -2652,7 +2679,7 @@ function wireRecordModal(type, rec) {
       const wasNeedingManager = commNeedsManager(rec.type) && rec.status !== "Resolved";
       const patch = { type: newStatus, status: newStatus === COMM_DONE ? "Resolved" : "Open", followUpDate: document.getElementById("editFollowUp").value };
       applyLocalPatch("communications", "communicationId", rec.communicationId, patch);
-      enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, patch: Object.assign({ followupDate: patch.followUpDate }, patch) });
+      enqueue("updateCommunication", { communicationId: rec.communicationId, updatedBy: currentWorker, tier: currentTier, patch: Object.assign({ followupDate: patch.followUpDate }, patch) });
       renderCommunications(); renderCalendar(); renderDashboard();
       const nowNeedsManager = commNeedsManager(patch.type) && patch.status !== "Resolved";
       if (nowNeedsManager && !wasNeedingManager) flagManagerForCommunication(Object.assign({}, rec, patch));
@@ -2707,7 +2734,7 @@ function wireRecordModal(type, rec) {
       const justDelivered = rec.direction === "Outgoing" && rec.status !== "Delivered" && newStatus === "Delivered";
       const justReceived = rec.direction === "Incoming" && rec.status !== "Delivered" && newStatus === "Delivered";
       applyLocalPatch("deliveries", "deliveryId", rec.deliveryId, patch);
-      enqueue("updateDelivery", { deliveryId: rec.deliveryId, updatedBy: currentWorker, patch: patch });
+      enqueue("updateDelivery", { deliveryId: rec.deliveryId, updatedBy: currentWorker, tier: currentTier, patch: patch });
       renderDeliveries(); renderDashboard();
       if (justDelivered) createFeedbackEmailTask(Object.assign({}, rec, patch));
       if (justReceived) markPurchaseReceivedFromDelivery(Object.assign({}, rec, patch));

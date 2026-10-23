@@ -153,7 +153,7 @@ function handleLogUser(payload) {
 function handleCreateTask(payload) {
   if (!payload.title) return { status: "error", message: "Title is required" };
   var id = createRecord("Tasks", payload);
-  logActivity(payload.createdBy, "Employee", "Task", id, "Created", "", payload.status || "Not Started", payload.title);
+  logActivity(payload.createdBy, payload.tier || "Employee", "Task", id, "Created", "", payload.status || "Not Started", payload.title);
   return { status: "ok", taskId: id };
 }
 
@@ -173,7 +173,7 @@ function handleUpdateTask(payload) {
 function handleCreateCalendarEvent(payload) {
   if (!payload.title || !payload.date) return { status: "error", message: "Title and date are required" };
   var id = createRecord("Calendar", payload);
-  logActivity(payload.createdBy, "Employee", "Calendar", id, "Created", "", payload.status || "Scheduled", payload.title);
+  logActivity(payload.createdBy, payload.tier || "Employee", "Calendar", id, "Created", "", payload.status || "Scheduled", payload.title);
   return { status: "ok", eventId: id };
 }
 
@@ -184,7 +184,7 @@ function handleUpdateCalendarEvent(payload) {
   if (!before) return { status: "error", message: "Event not found: " + eventId };
   var patch = payload.patch || {};
   updateRecord("Calendar", eventId, patch);
-  logActivity(payload.updatedBy || "", "", "Calendar", eventId, "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy || "", payload.tier || "", "Calendar", eventId, "Updated", before.status || "", patch.status || "", "");
   return { status: "ok", eventId: eventId };
 }
 
@@ -192,7 +192,7 @@ function handleUpdateCalendarEvent(payload) {
 function handleFlagDirectorAttention(payload) {
   if (!payload.issue) return { status: "error", message: "Issue is required" };
   var id = createRecord("DirectorAttention", payload);
-  logActivity(payload.flaggedBy, "Employee", "DirectorAttention", id, "Flagged", "", "Open", payload.issue);
+  logActivity(payload.flaggedBy, payload.tier || "Employee", "DirectorAttention", id, "Flagged", "", "Open", payload.issue);
   // Telegram.gs is optional; skip the alert if it hasn't been added to the project.
   if (typeof notifyFlagRaised === "function") notifyFlagRaised(id, payload);
   return { status: "ok", attentionId: id };
@@ -217,7 +217,7 @@ function handleRespondDirectorAttention(payload) {
 function handleCreateCommunication(payload) {
   if (!payload.message) return { status: "error", message: "Message is required" };
   var id = createRecord("Communications", payload);
-  logActivity(payload.createdBy, "Employee", "Communication", id, "Created", "", payload.status || "Open", payload.type || "");
+  logActivity(payload.createdBy, payload.tier || "Employee", "Communication", id, "Created", "", payload.status || "Open", payload.type || "");
   return { status: "ok", communicationId: id };
 }
 
@@ -228,7 +228,7 @@ function handleUpdateCommunication(payload) {
   if (!before) return { status: "error", message: "Not found: " + communicationId };
   var patch = payload.patch || {};
   updateRecord("Communications", communicationId, patch);
-  logActivity(payload.updatedBy || "", "", "Communication", communicationId, "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy || "", payload.tier || "", "Communication", communicationId, "Updated", before.status || "", patch.status || "", "");
   return { status: "ok", communicationId: communicationId };
 }
 
@@ -236,7 +236,7 @@ function handleUpdateCommunication(payload) {
 function handleCreateProduction(payload) {
   if (!payload.product) return { status: "error", message: "Product is required" };
   var id = createRecord("Production", payload);
-  logActivity(payload.createdBy, "Employee", "Production", id, "Created", "", payload.productionStatus || "", payload.product);
+  logActivity(payload.createdBy, payload.tier || "Employee", "Production", id, "Created", "", payload.productionStatus || "", payload.product);
   return { status: "ok", productionId: id };
 }
 
@@ -256,7 +256,7 @@ function handleUpdateProduction(payload) {
 function handleCreateDelivery(payload) {
   if (!payload.items) return { status: "error", message: "Items is required" };
   var id = createRecord("Deliveries", payload);
-  logActivity(payload.createdBy, "Employee", "Delivery", id, "Created", "", payload.status || "", payload.direction || "");
+  logActivity(payload.createdBy, payload.tier || "Employee", "Delivery", id, "Created", "", payload.status || "", payload.direction || "");
   return { status: "ok", deliveryId: id };
 }
 
@@ -267,7 +267,7 @@ function handleUpdateDelivery(payload) {
   if (!before) return { status: "error", message: "Delivery not found: " + deliveryId };
   var patch = payload.patch || {};
   updateRecord("Deliveries", deliveryId, patch);
-  logActivity(payload.updatedBy || "", "", "Delivery", deliveryId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy || "", payload.tier || "", "Delivery", deliveryId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
   return { status: "ok", deliveryId: deliveryId };
 }
 
@@ -275,7 +275,7 @@ function handleUpdateDelivery(payload) {
 function handleCreatePurchase(payload) {
   if (!payload.item) return { status: "error", message: "Item is required" };
   var id = createRecord("Purchases", payload);
-  logActivity(payload.createdBy, "Employee", "Purchase", id, "Created", "", payload.status || "Need Identified", payload.item);
+  logActivity(payload.createdBy, payload.tier || "Employee", "Purchase", id, "Created", "", payload.status || "Need Identified", payload.item);
   return { status: "ok", purchaseId: id };
 }
 
