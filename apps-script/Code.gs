@@ -165,7 +165,7 @@ function handleUpdateTask(payload) {
   var patch = payload.patch || {};
   if (patch.status === "Completed" && !patch.completedDate) patch.completedDate = new Date().toISOString();
   updateRecord("Tasks", taskId, patch);
-  logActivity(payload.updatedBy, payload.tier, "Task", taskId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy, payload.tier, "Task", taskId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", before.title || "");
   return { status: "ok", taskId: taskId };
 }
 
@@ -184,7 +184,7 @@ function handleUpdateCalendarEvent(payload) {
   if (!before) return { status: "error", message: "Event not found: " + eventId };
   var patch = payload.patch || {};
   updateRecord("Calendar", eventId, patch);
-  logActivity(payload.updatedBy || "", payload.tier || "", "Calendar", eventId, "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy || "", payload.tier || "", "Calendar", eventId, "Updated", before.status || "", patch.status || "", before.title || "");
   return { status: "ok", eventId: eventId };
 }
 
@@ -228,7 +228,7 @@ function handleUpdateCommunication(payload) {
   if (!before) return { status: "error", message: "Not found: " + communicationId };
   var patch = payload.patch || {};
   updateRecord("Communications", communicationId, patch);
-  logActivity(payload.updatedBy || "", payload.tier || "", "Communication", communicationId, "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy || "", payload.tier || "", "Communication", communicationId, "Updated", before.status || "", patch.status || "", (before.recipient || "") + (before.message ? ": " + before.message.slice(0, 50) : ""));
   return { status: "ok", communicationId: communicationId };
 }
 
@@ -256,6 +256,11 @@ function handleUpdateProduction(payload) {
   updateRecord("Production", productionId, patch);
 
   var user = payload.updatedBy, tier = payload.tier;
+  // Every per-section entry carries the batch's own name as its details —
+  // without it, each line said only "QC & Filling updated" with nothing
+  // to say which batch, which made the Telegram digest read as bare
+  // counts instead of something a Manager could actually act on.
+  var who = (before.product || "") + (before.client ? " for " + before.client : "");
   var sectionChanged = function (keys) {
     for (var i = 0; i < keys.length; i++) {
       var k = keys[i];
@@ -265,24 +270,24 @@ function handleUpdateProduction(payload) {
   };
 
   if (payload.blockerOverride) {
-    logActivity(user, tier, "Production", productionId, "Blocker overridden", before.productionStatus || "", patch.productionStatus || "", patch.blocker || "");
+    logActivity(user, tier, "Production", productionId, "Blocker overridden", before.productionStatus || "", patch.productionStatus || "", who);
   } else if (patch.hasOwnProperty("productionStatus") && String(patch.productionStatus || "") !== String(before.productionStatus || "")) {
-    logActivity(user, tier, "Production", productionId, "Overall Status updated", before.productionStatus || "", patch.productionStatus || "", "");
+    logActivity(user, tier, "Production", productionId, "Overall Status updated", before.productionStatus || "", patch.productionStatus || "", who);
   }
   if (sectionChanged(["plannedDate"])) {
-    logActivity(user, tier, "Production", productionId, "Planned Date updated", "", "", "");
+    logActivity(user, tier, "Production", productionId, "Planned Date updated", "", "", who);
   }
   if (sectionChanged(["packagingReadiness", "labelReadiness", "boxReadiness", "batchSheetStatus", "sopStatus"])) {
-    logActivity(user, tier, "Production", productionId, "Packaging, Label, Box & Paperwork Readiness updated", "", "", "");
+    logActivity(user, tier, "Production", productionId, "Packaging, Label, Box & Paperwork Readiness updated", "", "", who);
   }
   if (sectionChanged(["qcStatus", "fillingStatus", "directorReviewStatus"])) {
-    logActivity(user, tier, "Production", productionId, "QC & Filling updated", "", "", "");
+    logActivity(user, tier, "Production", productionId, "QC & Filling updated", "", "", who);
   }
   if (sectionChanged(["packagingType", "packagingSize", "quantityFilled", "unitWeight", "actualProductionDate"])) {
-    logActivity(user, tier, "Production", productionId, "Post-Production updated", "", "", "");
+    logActivity(user, tier, "Production", productionId, "Post-Production updated", "", "", who);
   }
   if (sectionChanged(["pifStatus", "pifLink"])) {
-    logActivity(user, tier, "Production", productionId, "PID updated", "", "", "");
+    logActivity(user, tier, "Production", productionId, "PID updated", "", "", who);
   }
   return { status: "ok", productionId: productionId };
 }
@@ -291,7 +296,7 @@ function handleUpdateProduction(payload) {
 function handleCreateDelivery(payload) {
   if (!payload.items) return { status: "error", message: "Items is required" };
   var id = createRecord("Deliveries", payload);
-  logActivity(payload.createdBy, payload.tier || "Employee", "Delivery", id, "Created", "", payload.status || "", payload.direction || "");
+  logActivity(payload.createdBy, payload.tier || "Employee", "Delivery", id, "Created", "", payload.status || "", (payload.direction || "") + (payload.clientOrSupplier ? " — " + payload.clientOrSupplier : ""));
   return { status: "ok", deliveryId: id };
 }
 
@@ -302,7 +307,7 @@ function handleUpdateDelivery(payload) {
   if (!before) return { status: "error", message: "Delivery not found: " + deliveryId };
   var patch = payload.patch || {};
   updateRecord("Deliveries", deliveryId, patch);
-  logActivity(payload.updatedBy || "", payload.tier || "", "Delivery", deliveryId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy || "", payload.tier || "", "Delivery", deliveryId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", (before.direction || "") + (before.clientOrSupplier ? " — " + before.clientOrSupplier : ""));
   return { status: "ok", deliveryId: deliveryId };
 }
 
@@ -323,7 +328,7 @@ function handleUpdatePurchase(payload) {
   if (!before) return { status: "error", message: "Purchase not found: " + purchaseId };
   var patch = payload.patch || {};
   updateRecord("Purchases", purchaseId, patch);
-  logActivity(payload.updatedBy, payload.tier, "Purchase", purchaseId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", "");
+  logActivity(payload.updatedBy, payload.tier, "Purchase", purchaseId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", (before.item || "") + (before.supplier ? " from " + before.supplier : ""));
   return { status: "ok", purchaseId: purchaseId };
 }
 

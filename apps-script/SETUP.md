@@ -57,9 +57,13 @@ to see their ID, then add it to `TELEGRAM_CHAT_IDS` (comma-separated).
 ### Daily digest
 
 On top of the instant flag alerts above, a once-a-day Telegram message
-summarizes *everything* logged to OC in the last 24 hours — every task,
-production update, delivery, purchase, communication — grouped by record
-type instead of pinging on every single save.
+covers two things: **Needs Your Attention** (every currently-open Manager
+Attention item, as a live snapshot) and **What Happened** (every single
+thing logged to OC in the last 24 hours — every task, production update,
+delivery, purchase, communication — as its own readable line naming what
+changed and who did it, not a tally). Nothing is capped or summarized away;
+a very busy day arrives as several messages back to back instead of one
+over Telegram's length limit.
 
 1. Make sure steps 1–7 above are already done (bot token and chat IDs set).
 2. In the Apps Script editor, choose `telegramDigestTest` in the function

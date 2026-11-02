@@ -85,38 +85,105 @@ function sendFlagMessage(id, p) {
 
 // ---------- Daily digest ----------
 
-// Fired by the trigger setupDailyDigestTrigger() installs. Summarizes every
-// ActivityLog row from the last 24 hours — every record type, not just
-// flags — grouped by what kind of record it was and what happened to it.
-// A quiet day sends one short "nothing logged" line instead of staying
-// silent, so silence never has to be read as "the digest broke."
+// Clips only a line's free-text detail (an issue, a message) so one very
+// long entry can't dominate the digest — never the whole line.
+function clipDigestText_(s, n) {
+  s = String(s || "");
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+function daysAgoText_(iso) {
+  var days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day ago";
+  return days + " days ago";
+}
+// One ActivityLog row -> one readable line: record type + what happened
+// (with the status it moved to, when there is one) + the batch/task/item
+// it was about + who did it. This is what makes the digest a narrative
+// instead of a bare tally -- every line names the real thing that changed.
+function formatDigestLine_(r) {
+  var who = escapeTelegram(r.user || "Unknown") + (r.tier === "Manager" ? " (Manager)" : "");
+  var head = escapeTelegram(r.recordType || "") + " " + escapeTelegram(r.action || "");
+  var transition = "";
+  if (r.newStatus && r.previousStatus && r.newStatus !== r.previousStatus) {
+    transition = " (" + escapeTelegram(r.previousStatus) + " → " + escapeTelegram(r.newStatus) + ")";
+  } else if (r.newStatus && !r.previousStatus) {
+    transition = " (" + escapeTelegram(r.newStatus) + ")";
+  }
+  var detail = r.details ? ": " + escapeTelegram(clipDigestText_(r.details, 90)) : "";
+  return "• " + head + transition + detail + " — " + who;
+}
+// Telegram refuses a message over 4096 characters. Packs the digest's
+// lines into as few messages as fit, splitting only at line breaks (never
+// mid-line), and sends them in order -- so "send everything" still works
+// on a busy day instead of silently truncating or erroring out.
+var TELEGRAM_CHUNK_LEN_ = 3500;
+function sendTelegramChunks_(sections) {
+  var allLines = [];
+  sections.forEach(function (s, i) {
+    if (i > 0) allLines.push("");
+    s.split("\n").forEach(function (line) { allLines.push(line); });
+  });
+  var chunks = [];
+  var current = "";
+  allLines.forEach(function (line) {
+    var candidate = current ? (current + "\n" + line) : line;
+    if (candidate.length > TELEGRAM_CHUNK_LEN_ && current) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current = candidate;
+    }
+  });
+  if (current) chunks.push(current);
+
+  var allOk = true;
+  chunks.forEach(function (chunk, i) {
+    var text = chunks.length > 1 ? "(" + (i + 1) + "/" + chunks.length + ")\n" + chunk : chunk;
+    if (!notifyTelegram(text)) allOk = false;
+  });
+  return allOk;
+}
+
+// Fired by the trigger setupDailyDigestTrigger() installs. Two parts:
+//  1. Needs Your Attention -- every currently-open Manager Attention item,
+//     a live status snapshot shown even on a quiet day (this already
+//     covers every auto-paging case: BLOCKED, Waiting for Manager/
+//     Purchase, QC Failed, unreviewed completions -- all of them flag
+//     Manager Attention on their own, so this one list is the complete
+//     "what still needs me" picture).
+//  2. What Happened -- every single ActivityLog row from the last 24
+//     hours, one line each, in full -- no cap, no "+N more". The Manager
+//     asked for everything, since she's rarely around to see it live.
 function sendDailyDigest() {
   try {
+    var attention = (getAllRows("DirectorAttention") || []).filter(function (r) { return r.status === "Open"; });
     var since = new Date(Date.now() - 24 * 60 * 60 * 1000);
     var recent = getAllRows("ActivityLog").filter(function (r) {
       return r.timestamp && new Date(r.timestamp) >= since;
-    });
-    if (!recent.length) {
-      return notifyTelegram("📋 <b>Daily Digest</b>\nNothing logged in OC in the last 24 hours.");
+    }).sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
+
+    var attLines = ["🔴 <b>Needs Your Attention</b> (" + attention.length + " open)"];
+    if (!attention.length) {
+      attLines.push("Nothing open right now.");
+    } else {
+      attention.forEach(function (a) {
+        attLines.push("• " + escapeTelegram(clipDigestText_(a.issue || "(no issue text)", 100)) +
+          " — " + escapeTelegram(a.flaggedBy || "Unknown") +
+          (a.priority ? " · " + escapeTelegram(a.priority) : "") +
+          (a.dateFlagged ? " · " + daysAgoText_(a.dateFlagged) : ""));
+      });
     }
-    var byType = {};
-    recent.forEach(function (r) {
-      var t = r.recordType || "Other";
-      byType[t] = byType[t] || { count: 0, actions: {} };
-      byType[t].count++;
-      var a = r.action || "Other";
-      byType[t].actions[a] = (byType[t].actions[a] || 0) + 1;
-    });
-    var lines = ["📋 <b>Daily Digest</b> — " + recent.length + " item(s) logged in the last 24 hours", ""];
-    Object.keys(byType).sort().forEach(function (t) {
-      var info = byType[t];
-      var breakdown = Object.keys(info.actions).map(function (a) {
-        return info.actions[a] + " " + a.toLowerCase();
-      }).join(", ");
-      lines.push("• <b>" + escapeTelegram(t) + "</b>: " + info.count + " (" + escapeTelegram(breakdown) + ")");
-    });
-    lines.push("", '<a href="' + OC_APP_URL + '">Open Operations Centre</a>');
-    return notifyTelegram(lines.join("\n"));
+
+    var dayLines = ["📋 <b>What Happened</b> — " + recent.length + " item(s) in the last 24 hours"];
+    if (!recent.length) {
+      dayLines.push("Nothing logged.");
+    } else {
+      recent.forEach(function (r) { dayLines.push(formatDigestLine_(r)); });
+    }
+
+    var linkLine = '<a href="' + OC_APP_URL + '">Open Operations Centre</a>';
+    return sendTelegramChunks_([attLines.join("\n"), dayLines.join("\n"), linkLine]);
   } catch (err) {
     console.warn("Daily digest failed: " + err.message);
     return false;
