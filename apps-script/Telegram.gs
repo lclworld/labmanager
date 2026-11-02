@@ -21,13 +21,20 @@
 
 var OC_APP_URL = "https://lclworld.github.io/labmanager/";
 
+// Returns true if it actually tried to send (token + at least one chat ID
+// configured), false if it bailed out before even attempting delivery —
+// callers that run interactively (telegramTest, telegramDigestTest) check
+// this so "nothing arrived" has a visible reason in the execution log
+// instead of looking like a silent success.
 function notifyTelegram(text) {
   var props = PropertiesService.getScriptProperties();
   var token = props.getProperty("TELEGRAM_BOT_TOKEN");
   var chatIds = (props.getProperty("TELEGRAM_CHAT_IDS") || "")
     .split(",").map(function (s) { return s.trim(); }).filter(String);
-  if (!token || !chatIds.length) return;
+  if (!token) { console.warn("Telegram: TELEGRAM_BOT_TOKEN is not set in Script Properties — nothing was sent."); return false; }
+  if (!chatIds.length) { console.warn("Telegram: TELEGRAM_CHAT_IDS is not set in Script Properties — nothing was sent. Run telegramFindChatIds first."); return false; }
 
+  var anyOk = false;
   chatIds.forEach(function (chatId) {
     try {
       var res = UrlFetchApp.fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
@@ -36,11 +43,16 @@ function notifyTelegram(text) {
         payload: JSON.stringify({ chat_id: chatId, text: text, parse_mode: "HTML", disable_web_page_preview: true }),
         muteHttpExceptions: true
       });
-      if (res.getResponseCode() !== 200) console.warn("Telegram " + chatId + ": " + res.getContentText());
+      if (res.getResponseCode() === 200) {
+        anyOk = true;
+      } else {
+        console.warn("Telegram " + chatId + ": HTTP " + res.getResponseCode() + " — " + res.getContentText());
+      }
     } catch (err) {
       console.warn("Telegram " + chatId + ": " + err.message);
     }
   });
+  return anyOk;
 }
 
 function escapeTelegram(s) {
@@ -85,8 +97,7 @@ function sendDailyDigest() {
       return r.timestamp && new Date(r.timestamp) >= since;
     });
     if (!recent.length) {
-      notifyTelegram("📋 <b>Daily Digest</b>\nNothing logged in OC in the last 24 hours.");
-      return;
+      return notifyTelegram("📋 <b>Daily Digest</b>\nNothing logged in OC in the last 24 hours.");
     }
     var byType = {};
     recent.forEach(function (r) {
@@ -105,9 +116,10 @@ function sendDailyDigest() {
       lines.push("• <b>" + escapeTelegram(t) + "</b>: " + info.count + " (" + escapeTelegram(breakdown) + ")");
     });
     lines.push("", '<a href="' + OC_APP_URL + '">Open Operations Centre</a>');
-    notifyTelegram(lines.join("\n"));
+    return notifyTelegram(lines.join("\n"));
   } catch (err) {
     console.warn("Daily digest failed: " + err.message);
+    return false;
   }
 }
 
@@ -150,13 +162,17 @@ function telegramFindChatIds() {
   }
 }
 
-// Step 2: sends a test message to every saved chat.
+// Step 2: sends a test message to every saved chat. Logs a clear pass/fail
+// instead of just running green with nothing to show for it.
 function telegramTest() {
-  notifyTelegram("✅ <b>LCL Operations Centre</b>\nTelegram alerts are working. You'll get a message here whenever something is flagged.");
+  var ok = notifyTelegram("✅ <b>LCL Operations Centre</b>\nTelegram alerts are working. You'll get a message here whenever something is flagged.");
+  console.log(ok ? "Sent — check Telegram now." : "Did NOT send — see the warning above this line for why (run View → Logs if you don't see one).");
 }
 
 // Optional: sends today's real digest right now, without waiting for the
-// trigger — useful to see what it looks like before scheduling it.
+// trigger — useful to see what it looks like before scheduling it. Also
+// reports pass/fail, same as telegramTest.
 function telegramDigestTest() {
-  sendDailyDigest();
+  var ok = sendDailyDigest();
+  console.log(ok ? "Sent — check Telegram now." : "Did NOT send — see the warning above this line for why (run View → Logs if you don't see one).");
 }
