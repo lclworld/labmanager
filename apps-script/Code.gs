@@ -240,6 +240,13 @@ function handleCreateProduction(payload) {
   return { status: "ok", productionId: id };
 }
 
+// A single save of this record's edit form can touch several unrelated
+// sections at once (readiness, QC & Filling, Post-Production, PID, the
+// Overall Status dropdown) — but the form always resends every field
+// whether or not the person actually touched it. One combined "Updated"
+// log line couldn't say which of those a person actually changed, so each
+// section below is logged separately, and only when something in it truly
+// differs from the record's prior value.
 function handleUpdateProduction(payload) {
   var productionId = payload.productionId;
   if (!productionId) return { status: "error", message: "productionId is required" };
@@ -247,8 +254,36 @@ function handleUpdateProduction(payload) {
   if (!before) return { status: "error", message: "Production record not found: " + productionId };
   var patch = payload.patch || {};
   updateRecord("Production", productionId, patch);
-  var action = payload.blockerOverride ? "Blocker overridden" : (patch.productionStatus ? "Status changed" : "Updated");
-  logActivity(payload.updatedBy, payload.tier, "Production", productionId, action, before.productionStatus || "", patch.productionStatus || "", payload.blockerOverride ? (patch.blocker || "") : "");
+
+  var user = payload.updatedBy, tier = payload.tier;
+  var sectionChanged = function (keys) {
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (patch.hasOwnProperty(k) && String(patch[k] || "") !== String(before[k] || "")) return true;
+    }
+    return false;
+  };
+
+  if (payload.blockerOverride) {
+    logActivity(user, tier, "Production", productionId, "Blocker overridden", before.productionStatus || "", patch.productionStatus || "", patch.blocker || "");
+  } else if (patch.hasOwnProperty("productionStatus") && String(patch.productionStatus || "") !== String(before.productionStatus || "")) {
+    logActivity(user, tier, "Production", productionId, "Overall Status updated", before.productionStatus || "", patch.productionStatus || "", "");
+  }
+  if (sectionChanged(["plannedDate"])) {
+    logActivity(user, tier, "Production", productionId, "Planned Date updated", "", "", "");
+  }
+  if (sectionChanged(["packagingReadiness", "labelReadiness", "boxReadiness", "batchSheetStatus", "sopStatus"])) {
+    logActivity(user, tier, "Production", productionId, "Packaging, Label, Box & Paperwork Readiness updated", "", "", "");
+  }
+  if (sectionChanged(["qcStatus", "fillingStatus", "directorReviewStatus"])) {
+    logActivity(user, tier, "Production", productionId, "QC & Filling updated", "", "", "");
+  }
+  if (sectionChanged(["packagingType", "packagingSize", "quantityFilled", "unitWeight", "actualProductionDate"])) {
+    logActivity(user, tier, "Production", productionId, "Post-Production updated", "", "", "");
+  }
+  if (sectionChanged(["pifStatus", "pifLink"])) {
+    logActivity(user, tier, "Production", productionId, "PID updated", "", "", "");
+  }
   return { status: "ok", productionId: productionId };
 }
 
