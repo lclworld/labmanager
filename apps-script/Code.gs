@@ -56,6 +56,8 @@ function doGet(e) {
         return jsonOut({ status: "ok", purchases: getAllRows("Purchases") });
       case "getActivityLog":
         return jsonOut({ status: "ok", entries: getAllRows("ActivityLog") });
+      case "getTeamFund":
+        return jsonOut(handleGetTeamFund());
       default:
         return errorOut("Unknown action: " + action);
     }
@@ -103,6 +105,8 @@ function doPost(e) {
         return jsonOut(handleUpdatePurchase(payload));
       case "archiveRecord":
         return jsonOut(handleArchiveRecord(payload));
+      case "logTeamFundTransaction":
+        return jsonOut(handleLogTeamFundTransaction(payload));
       default:
         return errorOut("Unknown action: " + action);
     }
@@ -330,6 +334,88 @@ function handleUpdatePurchase(payload) {
   updateRecord("Purchases", purchaseId, patch);
   logActivity(payload.updatedBy, payload.tier, "Purchase", purchaseId, patch.status ? "Status changed" : "Updated", before.status || "", patch.status || "", (before.item || "") + (before.supplier ? " from " + before.supplier : ""));
   return { status: "ok", purchaseId: purchaseId };
+}
+
+// ---------- Team Fund ----------
+// A separate, pre-existing Google Sheet — Dr. Efua's own "Company Phone
+// Transactions" mobile-money ledger — never one of this project's own
+// SCHEMA tabs above. Its ID lives in Script Properties, same as the
+// Telegram bot token, since it's real money and shouldn't be hardcoded
+// into a file anyone with edit access to this project can read. See
+// SETUP.md, "Team Fund".
+function getTeamFundSheet_() {
+  var id = PropertiesService.getScriptProperties().getProperty("TEAM_FUND_SHEET_ID");
+  if (!id) throw new Error('TEAM_FUND_SHEET_ID is not set in Script Properties — see SETUP.md, "Team Fund".');
+  var sheet = SpreadsheetApp.openById(id).getSheetByName("Transaction Details");
+  if (!sheet) throw new Error('Tab "Transaction Details" not found in the Team Fund spreadsheet.');
+  return sheet;
+}
+
+// The ledger's own running-balance column (I) already carries the current
+// total on its last row with a real number in it — read, never recomputed
+// from the whole history (a stray blank/garbled row further up stays
+// harmless either way).
+function lastTeamFundBalance_(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return 0;
+  var values = sheet.getRange(2, 9, lastRow - 1, 1).getValues();
+  for (var i = values.length - 1; i >= 0; i--) {
+    var v = values[i][0];
+    if (v !== "" && v !== null && !isNaN(v)) return Number(v);
+  }
+  return 0;
+}
+
+function handleGetTeamFund() {
+  var sheet = getTeamFundSheet_();
+  var lastRow = sheet.getLastRow();
+  var recent = [];
+  if (lastRow >= 2) {
+    var startRow = Math.max(2, lastRow - 24);
+    var data = sheet.getRange(startRow, 1, lastRow - startRow + 1, 9).getValues();
+    recent = data.map(function (r) {
+      return {
+        date: r[0] instanceof Date ? r[0].toISOString() : String(r[0] || ""),
+        time: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ""),
+        name: r[2] || "", number: r[3] || "", purpose: r[4] || "",
+        staffName: r[5] || "", credit: r[6] || "", debit: r[7] || "", remaining: r[8] || ""
+      };
+    }).reverse();
+  }
+  return { status: "ok", balance: lastTeamFundBalance_(sheet), recent: recent };
+}
+
+// Appends one row in the exact same shape a manual entry uses (Date, Time,
+// Name, Number, Purpose, Staff Name, Credit, Debit, Remaining Amount) — so
+// a transaction logged from OC is indistinguishable, when reconciling the
+// phone later, from one typed straight into the Sheet. Locked: two people
+// logging at once must never both read the same "last balance" and
+// silently drop one transaction.
+function handleLogTeamFundTransaction(payload) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sheet = getTeamFundSheet_();
+    var amount = Number(payload.amount);
+    if (!amount || amount <= 0) return { status: "error", message: "A positive amount is required" };
+    var isCredit = payload.direction === "in";
+    var prevBalance = lastTeamFundBalance_(sheet);
+    var newBalance = isCredit ? prevBalance + amount : prevBalance - amount;
+    var now = new Date();
+    sheet.appendRow([
+      now, now,
+      payload.name || "", payload.number || "", payload.purpose || "",
+      payload.staffName || payload.updatedBy || "",
+      isCredit ? amount : "", isCredit ? "" : amount,
+      newBalance
+    ]);
+    logActivity(payload.staffName || payload.updatedBy, payload.tier || "Employee", "TeamFund", "-",
+      isCredit ? "Deposit logged" : "Expense logged", "", "",
+      (payload.purpose || "") + " — " + amount + (payload.name ? " (" + payload.name + ")" : ""));
+    return { status: "ok", balance: newBalance };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // ---------- Archive (Section 5/24: soft, reversible — never a hard

@@ -93,6 +93,25 @@
   .stat[data-nav-screen] { cursor: pointer; }
   .stat[data-nav-screen]:active { background: rgba(255,145,77,0.08); }
 
+  .team-fund-balance { text-align: center; padding: 22px 16px; }
+  .team-fund-balance .lbl { font-size: 0.68rem; color: var(--brown); text-transform: uppercase; letter-spacing: 0.04em; }
+  .team-fund-balance .tf-balance-num { font-family: 'Playfair Display', serif; font-weight: 800; font-size: 2.3rem; margin: 6px 0 4px; }
+
+  .item-line-row { display: flex; gap: 8px; align-items: flex-end; margin-top: 8px; }
+  .item-line-row input[name="itemLineName"] { flex: 2; }
+  .item-line-row input[name="itemLineQty"] { flex: 1; }
+  .item-line-row button.remove-item-line { flex: none; width: auto; margin: 0; padding: 11px 12px; border: 1.5px solid var(--border); border-radius: 10px; background: var(--white); color: var(--brown); font-weight: 700; cursor: pointer; }
+  .packing-slip-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .packing-slip-row:last-child { border-bottom: none; }
+  .packing-slip-row .ps-qty { color: var(--brown); font-weight: 700; flex: none; }
+  .packing-slip-row .ps-check { width: 20px; height: 20px; flex: none; }
+  @media print {
+    body * { visibility: hidden; }
+    .packing-slip-print, .packing-slip-print * { visibility: visible; }
+    .packing-slip-print { position: absolute; top: 0; left: 0; width: 100%; padding: 20px; }
+    .packing-slip-print .no-print { display: none !important; }
+  }
+
   .external-link-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .external-link-card .elc-title { font-weight: 700; font-size: 0.85rem; }
   .external-link-card .btn { width: auto; margin-top: 0; padding: 10px 16px; white-space: nowrap; flex: none; }
@@ -216,6 +235,7 @@
     <div class="nav-item" data-screen="production">Production</div>
     <div class="nav-item" data-screen="deliveries">Deliveries</div>
     <div class="nav-item" data-screen="purchasing">Purchasing</div>
+    <div class="nav-item" data-screen="teamFund">Team Fund</div>
     <div class="nav-divider"></div>
     <div class="nav-item" data-screen="history">History &amp; Search</div>
     <div class="nav-divider"></div>
@@ -333,6 +353,15 @@
         <div class="stat-head"><div class="lbl">Open Purchases</div></div>
         <div class="num" id="statPurchases">—</div>
         <div class="hint" id="purchasingHint">— pending · — awaiting payment · — awaiting supplier</div>
+      </div>
+    </div>
+
+    <h3 class="section-title">Team Fund</h3>
+    <div class="stat-row">
+      <div class="stat" data-nav-screen="teamFund">
+        <div class="stat-head"><div class="lbl">Current Balance</div></div>
+        <div class="num" id="statTeamFund">—</div>
+        <div class="hint" id="teamFundHint">Tap to view &amp; log a transaction</div>
       </div>
     </div>
 
@@ -575,6 +604,11 @@
       </div>
       <label>Client or Supplier</label><input id="delClientOrSupplier" placeholder="Name">
       <label>Items</label><textarea id="delItems" placeholder="What's being delivered"></textarea>
+      <div class="outgoing-only">
+        <label>Packing Slip Items (optional — for a per-item checklist)</label>
+        <div id="delItemLines"></div>
+        <button type="button" class="btn dark" id="addDelItemLineBtn" style="margin-top:8px;">+ Add Item</button>
+      </div>
       <label>Delivery Date</label><input type="date" id="delDeliveryDate">
       <details class="more"><summary>More details</summary>
         <div class="form-grid">
@@ -635,6 +669,30 @@
       <button data-status="__archived__">Archived</button>
     </div>
     <div class="card"><div id="purchaseList"></div></div>
+  </div>
+
+  <!-- TEAM FUND -->
+  <div class="screen" id="teamFund">
+    <h2 class="title">Team Fund</h2>
+    <div class="card team-fund-balance">
+      <div class="lbl">Current Balance</div>
+      <div class="tf-balance-num" id="tfBalanceNum">—</div>
+      <div class="hint" id="tfBalanceHint">Live from the Company Phone Transactions sheet</div>
+    </div>
+    <button class="btn primary" id="newTeamFundTxBtn">+ Log Transaction</button>
+    <div class="card" id="teamFundForm" style="display:none;">
+      <label>Direction</label>
+      <select id="tfDirection"><option value="in">Money In (deposit)</option><option value="out">Money Out (expense)</option></select>
+      <label>Amount</label><input type="number" step="0.01" min="0" id="tfAmount" placeholder="0.00">
+      <label>Purpose</label><input id="tfPurpose" placeholder="e.g. Delivery, Ingredients, Airtime">
+      <div class="form-grid">
+        <div><label>Name</label><input id="tfName" placeholder="Who you paid / received from"></div>
+        <div><label>Number</label><input id="tfNumber" placeholder="Their phone number"></div>
+      </div>
+      <button class="btn primary" id="saveTeamFundTxBtn">Save Transaction</button>
+    </div>
+    <h3 class="section-title">Recent Transactions</h3>
+    <div class="card"><div id="teamFundList"></div></div>
   </div>
 
   <!-- HISTORY & SEARCH -->
@@ -856,6 +914,20 @@ async function trySync() {
       }
     }
 
+    // Team Fund points at a separate, optional spreadsheet (TEAM_FUND_
+    // SHEET_ID might not be set yet) — fetched on its own, outside the
+    // all-or-nothing batch above, so it can never block that batch's own
+    // orphaned-queue cleanup or show as a persistent "Sync issue" banner
+    // for a feature nobody is required to set up.
+    try {
+      const tf = await fetchJSON("getTeamFund");
+      if (tf.status === "ok") {
+        const c = loadCache();
+        c.teamFund = { balance: tf.balance, recent: tf.recent };
+        saveCache(c);
+      }
+    } catch (err) { /* not configured yet, or offline — keep the last-known value */ }
+
     renderAll();
   } catch (err) {
     lastSyncError = err.message;
@@ -1026,6 +1098,11 @@ function renderDashboard() {
     .concat(countBy(openPurchases, p => (p.status || "Need Identified").toLowerCase(),
       ["pending approval", "need identified", "approved", "ordered", "paid", "awaiting supplier", "received"])), "No open purchases"));
 
+  // Team Fund — the live ledger balance, read straight from the last sync.
+  const teamFund = cache.teamFund || {};
+  set("statTeamFund", teamFund.balance !== undefined ? fmtNum(teamFund.balance) : "—");
+  hint("teamFundHint", teamFund.balance !== undefined ? "Tap to view & log a transaction" : "Not set up yet — see SETUP.md");
+
   // Communications — the open conversations, by next step.
   const openComms = (cache.communications || []).filter(c => notArchived(c) && c.status !== "Resolved");
   set("statCommunications", openComms.length);
@@ -1083,6 +1160,7 @@ function renderAll() {
   renderProduction();
   renderDeliveries();
   renderPurchasing();
+  renderTeamFund();
   renderNotifBadge();
   renderHistory();
 }
@@ -1867,6 +1945,39 @@ document.getElementById("prodInventoryRefHint").addEventListener("click", (e) =>
   document.getElementById("prodInventoryRefHint").innerHTML = "";
 });
 
+// ---------- Delivery item lines (Packing Slip) ----------
+// Optional, structured breakdown alongside the plain "Items" text field —
+// serialized to one JSON string column (Sheets.gs: "Item lines") so it
+// rides along with the rest of the delivery row without a schema change
+// beyond that single new column. Shared between the New Delivery form and
+// the edit modal, which both just need "a container to render rows into."
+function addItemLineRow(containerId, item, qty) {
+  const row = document.createElement("div");
+  row.className = "item-line-row";
+  row.innerHTML =
+    '<input name="itemLineName" placeholder="Item" value="' + escapeHtml(item || "") + '">' +
+    '<input name="itemLineQty" type="number" min="0" placeholder="Qty" value="' + escapeHtml(qty || "") + '">' +
+    '<button type="button" class="remove-item-line">✕</button>';
+  row.querySelector(".remove-item-line").addEventListener("click", () => row.remove());
+  document.getElementById(containerId).appendChild(row);
+}
+function renderItemLineRows(containerId, lines) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  (lines || []).forEach(l => addItemLineRow(containerId, l.item, l.qty));
+}
+function collectItemLines(containerId) {
+  return Array.from(document.querySelectorAll("#" + containerId + " .item-line-row")).map(row => ({
+    item: row.querySelector('[name="itemLineName"]').value.trim(),
+    qty: row.querySelector('[name="itemLineQty"]').value.trim()
+  })).filter(l => l.item);
+}
+function parseItemLines(json) {
+  if (!json) return [];
+  try { const v = JSON.parse(json); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+document.getElementById("addDelItemLineBtn").addEventListener("click", () => addItemLineRow("delItemLines"));
+
 // ---------- Deliveries ----------
 // Packaging/label/box status and PIF only mean anything for what WE ship
 // out — an incoming delivery of raw materials has no packaging of ours to
@@ -1926,6 +2037,7 @@ document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
     notes: document.getElementById("delNotes").value.trim(),
     relatedProduction: document.getElementById("delRelatedProduction").dataset.productionId || "",
     pifEmailed: document.getElementById("delPifEmailed").checked ? "Yes" : "No",
+    itemLines: JSON.stringify(collectItemLines("delItemLines")),
     createdBy: currentWorker,
     tier: currentTier,
     createdDate: now,
@@ -1940,6 +2052,7 @@ document.getElementById("saveDeliveryBtn").addEventListener("click", () => {
   ["delClientOrSupplier", "delItems", "delDeliveryDate", "delExpectedTime", "delContact", "delCost", "delNotes", "delRelatedProduction"].forEach(id => document.getElementById(id).value = "");
   delete document.getElementById("delRelatedProduction").dataset.productionId;
   document.getElementById("delPifEmailed").checked = false;
+  document.getElementById("delItemLines").innerHTML = "";
   document.getElementById("deliveryForm").style.display = "none";
   enqueue("createDelivery", fields);
   createPrepTaskForDelivery(fields);
@@ -2190,6 +2303,68 @@ document.getElementById("purchaseList").addEventListener("click", (e) => {
   const row = e.target.closest(".record-row");
   if (row) openRecordModal("purchase", row.dataset.id);
 });
+
+// ---------- Team Fund ----------
+// Reads/writes a separate, pre-existing Google Sheet (not one of OC's own
+// tabs) — see Code.gs handleGetTeamFund/handleLogTeamFundTransaction and
+// SETUP.md, "Team Fund". The balance and recent list are refreshed on
+// their own schedule in trySync(), independently of the other 9 reads.
+document.getElementById("newTeamFundTxBtn").addEventListener("click", () => {
+  const form = document.getElementById("teamFundForm");
+  form.style.display = form.style.display === "none" ? "block" : "none";
+});
+document.getElementById("saveTeamFundTxBtn").addEventListener("click", () => {
+  const amount = Number(document.getElementById("tfAmount").value);
+  const purpose = document.getElementById("tfPurpose").value.trim();
+  if (!amount || amount <= 0) { document.getElementById("tfAmount").focus(); return; }
+  if (!purpose) { document.getElementById("tfPurpose").focus(); return; }
+  const direction = document.getElementById("tfDirection").value;
+  const name = document.getElementById("tfName").value.trim();
+  const number = document.getElementById("tfNumber").value.trim();
+  const payload = { direction: direction, amount: amount, purpose: purpose, name: name, number: number, staffName: currentWorker, tier: currentTier };
+
+  const cache = loadCache();
+  cache.teamFund = cache.teamFund || { balance: 0, recent: [] };
+  const prevBalance = cache.teamFund.balance || 0;
+  const newBalance = direction === "in" ? prevBalance + amount : prevBalance - amount;
+  const now = new Date().toISOString();
+  cache.teamFund.recent = [{
+    date: now, time: now, name: name, number: number, purpose: purpose, staffName: currentWorker,
+    credit: direction === "in" ? amount : "", debit: direction === "out" ? amount : "", remaining: newBalance, pending: true
+  }].concat(cache.teamFund.recent || []);
+  cache.teamFund.balance = newBalance;
+  saveCache(cache);
+  renderTeamFund();
+  renderDashboard();
+
+  ["tfAmount", "tfPurpose", "tfName", "tfNumber"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("teamFundForm").style.display = "none";
+  enqueue("logTeamFundTransaction", payload);
+});
+function renderTeamFund() {
+  const cache = loadCache();
+  const tf = cache.teamFund || {};
+  const balanceEl = document.getElementById("tfBalanceNum");
+  const hintEl = document.getElementById("tfBalanceHint");
+  if (balanceEl) balanceEl.textContent = tf.balance !== undefined ? fmtNum(tf.balance) : "—";
+  if (hintEl) hintEl.textContent = tf.balance !== undefined ? "Live from the Company Phone Transactions sheet" : 'Not set up yet — see SETUP.md, "Team Fund"';
+  const list = document.getElementById("teamFundList");
+  if (!list) return;
+  const recent = tf.recent || [];
+  if (!recent.length) { list.innerHTML = '<div class="empty-state">No transactions yet.</div>'; return; }
+  list.innerHTML = recent.map(r => {
+    const isCredit = r.credit !== "" && r.credit !== undefined && r.credit !== null;
+    const amount = isCredit ? r.credit : r.debit;
+    return `
+    <div class="record-row" style="cursor:default;">
+      <div>
+        <div class="rr-title">${escapeHtml(r.purpose || "(no purpose)")}${r.name ? " — " + escapeHtml(r.name) : ""}</div>
+        <div class="rr-meta">${escapeHtml(r.staffName || "")}${r.date ? " · " + fmtDate(r.date) : ""}</div>
+      </div>
+      <div class="rr-right"><span class="pill ${isCredit ? "status-completed" : "status-blocked"}">${isCredit ? "+" : "-"}${escapeHtml(fmtNum(amount))}</span></div>
+    </div>`;
+  }).join("");
+}
 
 // ===================================================================
 // AUTOMATIONS / NOTIFICATIONS (Section 17 & 20) — computed fresh from
@@ -2535,6 +2710,33 @@ function openRecordModal(type, id) {
 function closeRecordModal() { document.getElementById("recordOverlay").classList.remove("show"); }
 document.getElementById("recordOverlay").addEventListener("click", (e) => { if (e.target.id === "recordOverlay") closeRecordModal(); });
 
+// A printable checklist for an outgoing delivery: company code (typed in
+// at print time — this app has no fixed notion of what that code is, so
+// it's left free text), one row per packing-slip item line with a
+// checkbox to tick while physically counting, and a final "counted
+// everything" checkbox. @media print (see <style>) hides everything on
+// the page except .packing-slip-print when Print is pressed.
+function openPackingSlip(rec, itemLines) {
+  const lines = (itemLines && itemLines.length) ? itemLines : (rec.items ? [{ item: rec.items, qty: "" }] : []);
+  const rows = lines.length
+    ? lines.map(l => `<div class="packing-slip-row"><span>${escapeHtml(l.item)}</span><span class="ps-qty">${escapeHtml(l.qty || "")}</span><input type="checkbox" class="ps-check"></div>`).join("")
+    : '<div class="hint">No items listed yet — add them on the delivery first.</div>';
+  document.getElementById("recordCard").innerHTML = `
+    <div class="packing-slip-print">
+      <button class="close no-print" id="recordCloseBtn">Close ✕</button>
+      <h3>Packing Slip</h3>
+      ${kv("Client", rec.clientOrSupplier) + kv("Delivery Date", fmtDate(rec.deliveryDate))}
+      <label>Company Code</label><input id="psCompanyCode" placeholder="Enter company code">
+      <h3 style="margin-top:18px;">Items</h3>
+      ${rows}
+      <label class="check-row"><input type="checkbox" id="psCountedAll"> I have counted and confirmed all items above</label>
+      <button class="btn primary no-print" id="printPackingSlipBtn">Print</button>
+    </div>`;
+  document.getElementById("recordOverlay").classList.add("show");
+  document.getElementById("recordCloseBtn").addEventListener("click", closeRecordModal);
+  document.getElementById("printPackingSlipBtn").addEventListener("click", () => window.print());
+}
+
 function buildRecordHtml(type, rec) {
   let html = '<button class="close" id="recordCloseBtn">Close ✕</button>';
   if (type === "task") {
@@ -2617,8 +2819,12 @@ function buildRecordHtml(type, rec) {
     html += `<label>Status</label><select id="editStatus">${["Scheduled", "Packed", "Dispatched", "Delivered", "Cancelled"].map(s => `<option ${s === rec.status ? "selected" : ""}>${s}</option>`).join("")}</select>`;
     if (isOutgoing) {
       html += `<label class="check-row"><input type="checkbox" id="editPifEmailed" ${rec.pifEmailed === "Yes" ? "checked" : ""}> Product Information Documentation (PID) emailed to client</label>`;
+      html += `<label>Packing Slip Items</label><div id="editItemLines"></div><button type="button" class="btn dark" id="addEditItemLineBtn" style="margin-top:8px;">+ Add Item</button>`;
     }
     html += `<button class="btn primary" id="recordSaveBtn">Update Delivery</button>`;
+    if (isOutgoing) {
+      html += `<button class="btn dark" id="openPackingSlipBtn">Packing Slip</button>`;
+    }
   } else if (type === "purchase") {
     html += `<h3>${escapeHtml(rec.item)}</h3>`;
     html += kv("Supplier", rec.supplier) + kv("Category", rec.category) + kv("Quantity", fmtNum(rec.quantity)) + kv("Amount", fmtNum(rec.amount)) + kv("Expected Arrival", fmtDate(rec.expectedArrival)) + kv("Responsible Person", rec.responsiblePerson) + kv("Received", rec.received) + kv("Notes", rec.notes);
@@ -2644,6 +2850,11 @@ function applyLocalPatch(arrayKey, idKey, idVal, patch) {
 }
 function wireRecordModal(type, rec) {
   document.getElementById("recordCloseBtn").addEventListener("click", closeRecordModal);
+  if (type === "delivery" && rec.direction === "Outgoing") {
+    renderItemLineRows("editItemLines", parseItemLines(rec.itemLines));
+    document.getElementById("addEditItemLineBtn").addEventListener("click", () => addItemLineRow("editItemLines"));
+    document.getElementById("openPackingSlipBtn").addEventListener("click", () => openPackingSlip(rec, collectItemLines("editItemLines")));
+  }
   const saveBtn = document.getElementById("recordSaveBtn");
   if (saveBtn) saveBtn.addEventListener("click", () => {
     const newStatus = document.getElementById("editStatus").value;
@@ -2731,6 +2942,7 @@ function wireRecordModal(type, rec) {
     } else if (type === "delivery") {
       const pifCheckbox = document.getElementById("editPifEmailed");
       const patch = pifCheckbox ? { status: newStatus, pifEmailed: pifCheckbox.checked ? "Yes" : "No" } : { status: newStatus };
+      if (document.getElementById("editItemLines")) patch.itemLines = JSON.stringify(collectItemLines("editItemLines"));
       const justDelivered = rec.direction === "Outgoing" && rec.status !== "Delivered" && newStatus === "Delivered";
       const justReceived = rec.direction === "Incoming" && rec.status !== "Delivered" && newStatus === "Delivered";
       applyLocalPatch("deliveries", "deliveryId", rec.deliveryId, patch);

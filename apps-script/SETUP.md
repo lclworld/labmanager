@@ -79,3 +79,25 @@ over Telegram's length limit.
 
 A quiet 24 hours still sends one short "nothing logged" message, so you
 always know the digest itself is still working.
+
+## Team Fund
+
+Shows the live balance of the "Company Phone Transactions" Google Sheet
+(the mobile-money ledger already kept by hand) on the Command Center, and
+lets staff log a new transaction straight from OC — it appends a row to
+that same Sheet, in the same shape already used there, so the phone's own
+history stays reconcilable either way.
+
+1. Open the "Company Phone Transactions" Sheet. Its ID is the long string
+   in its URL, between `/d/` and `/edit`:
+   `docs.google.com/spreadsheets/d/`**`THIS PART`**`/edit`.
+2. Check that whichever Google account this Apps Script project runs as
+   (Deploy → Manage deployments shows "Execute as") already has edit
+   access to that Sheet — share it with that account if it doesn't.
+3. In the Apps Script editor: **Project Settings (gear) → Script
+   Properties → Add script property**: `TEAM_FUND_SHEET_ID` = the ID from
+   step 1. Save.
+4. **Deploy → Manage deployments → edit (pencil) → New version.**
+
+If `TEAM_FUND_SHEET_ID` isn't set, the Team Fund screen says so plainly
+instead of showing a blank or wrong balance.
