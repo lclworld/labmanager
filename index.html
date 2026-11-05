@@ -1113,7 +1113,12 @@ function renderDashboard() {
   // Team Fund — the live ledger balance, read straight from the last sync.
   const teamFund = cache.teamFund || {};
   set("statTeamFund", teamFund.balance !== undefined ? fmtNum(teamFund.balance) : "—");
-  hint("teamFundHint", teamFund.balance !== undefined ? "Tap to view & log a transaction" : (teamFund.lastError ? "Tap to see why" : "Not set up yet — see SETUP.md"));
+  if (teamFund.balance === undefined) {
+    hint("teamFundHint", teamFund.lastError ? "Tap to see why" : "Not set up yet — see SETUP.md");
+  } else {
+    const lastEntry = (teamFund.recent || [])[0];
+    hint("teamFundHint", lastEntry && lastEntry.date ? "Last updated " + fmtDate(lastEntry.date) : "Tap to view & log a transaction");
+  }
 
   // Communications — the open conversations, by next step.
   const openComms = (cache.communications || []).filter(c => notArchived(c) && c.status !== "Resolved");
