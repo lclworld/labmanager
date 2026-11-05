@@ -921,12 +921,24 @@ async function trySync() {
     // for a feature nobody is required to set up.
     try {
       const tf = await fetchJSON("getTeamFund");
+      const c = loadCache();
       if (tf.status === "ok") {
-        const c = loadCache();
-        c.teamFund = { balance: tf.balance, recent: tf.recent };
-        saveCache(c);
+        c.teamFund = { balance: tf.balance, recent: tf.recent, lastError: null };
+      } else {
+        // Never silently swallow this — the whole point of keeping Team
+        // Fund out of the all-or-nothing banner above is so it fails
+        // quietly there, not so nobody can ever find out why. Surface the
+        // real backend message (e.g. "TEAM_FUND_SHEET_ID is not set",
+        // 'Tab "Transaction Details" not found', a Sheets permission
+        // error) right on the Team Fund screen itself instead.
+        c.teamFund = Object.assign({}, c.teamFund, { lastError: tf.message || "Unknown error" });
       }
-    } catch (err) { /* not configured yet, or offline — keep the last-known value */ }
+      saveCache(c);
+    } catch (err) {
+      const c = loadCache();
+      c.teamFund = Object.assign({}, c.teamFund, { lastError: "Could not reach the backend: " + err.message });
+      saveCache(c);
+    }
 
     renderAll();
   } catch (err) {
@@ -1101,7 +1113,7 @@ function renderDashboard() {
   // Team Fund — the live ledger balance, read straight from the last sync.
   const teamFund = cache.teamFund || {};
   set("statTeamFund", teamFund.balance !== undefined ? fmtNum(teamFund.balance) : "—");
-  hint("teamFundHint", teamFund.balance !== undefined ? "Tap to view & log a transaction" : "Not set up yet — see SETUP.md");
+  hint("teamFundHint", teamFund.balance !== undefined ? "Tap to view & log a transaction" : (teamFund.lastError ? "Tap to see why" : "Not set up yet — see SETUP.md"));
 
   // Communications — the open conversations, by next step.
   const openComms = (cache.communications || []).filter(c => notArchived(c) && c.status !== "Resolved");
@@ -2372,7 +2384,11 @@ function renderTeamFund() {
   const balanceEl = document.getElementById("tfBalanceNum");
   const hintEl = document.getElementById("tfBalanceHint");
   if (balanceEl) balanceEl.textContent = tf.balance !== undefined ? fmtNum(tf.balance) : "—";
-  if (hintEl) hintEl.textContent = tf.balance !== undefined ? "Live from the Company Phone Transactions sheet" : 'Not set up yet — see SETUP.md, "Team Fund"';
+  if (hintEl) {
+    if (tf.balance !== undefined) hintEl.textContent = "Live from the Company Phone Transactions sheet";
+    else if (tf.lastError) hintEl.textContent = "⚠ " + tf.lastError;
+    else hintEl.textContent = 'Not set up yet — see SETUP.md, "Team Fund"';
+  }
   const list = document.getElementById("teamFundList");
   if (!list) return;
   const recent = tf.recent || [];
