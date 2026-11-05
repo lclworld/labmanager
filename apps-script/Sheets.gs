@@ -25,7 +25,13 @@ var SCHEMA = {
   // may already have real rows in it, and every read/write here is purely
   // positional (column N in SCHEMA = column N in the sheet). Inserting or
   // reordering would silently misalign every existing row.
-  Production: ["Production ID", "Client", "Product", "Inventory reference", "Batch size", "Planned date", "Assigned staff", "Packaging readiness", "Label readiness", "Box readiness", "Batch sheet status", "SOP status", "Production status", "QC status", "Filling status", "Final status", "Blocker", "Director review status", "Notes", "Created by", "Created date", "Last updated", "Archived", "Archived date", "Packaging type", "Packaging size", "Quantity filled", "Unit weight", "Actual production date", "PIF status", "PIF link"],
+  // "Inventory batch ID" is the unique ID Inventory assigns each pushed
+  // batch (e.g. "batch-1735..."). Matching Inventory pushes against OC's
+  // "not yet tracked" list by product NAME alone meant a second batch of
+  // the same product, pushed after the first was already tracked, never
+  // showed up again — the name match looked like "already tracked"
+  // forever. This column lets a specific push be recognized precisely.
+  Production: ["Production ID", "Client", "Product", "Inventory reference", "Batch size", "Planned date", "Assigned staff", "Packaging readiness", "Label readiness", "Box readiness", "Batch sheet status", "SOP status", "Production status", "QC status", "Filling status", "Final status", "Blocker", "Director review status", "Notes", "Created by", "Created date", "Last updated", "Archived", "Archived date", "Packaging type", "Packaging size", "Quantity filled", "Unit weight", "Actual production date", "PIF status", "PIF link", "Inventory batch ID"],
   // "Item lines" is a JSON string of [{item, qty}, ...] — an optional,
   // structured breakdown used by the Packing Slip (Section 28); the plain
   // "Items" text field above still holds the free-text description used

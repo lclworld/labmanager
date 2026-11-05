@@ -1830,6 +1830,7 @@ document.getElementById("saveProductionBtn").addEventListener("click", () => {
     client: document.getElementById("prodClient").value.trim(),
     product: product,
     inventoryReference: document.getElementById("prodInventoryRef").value.trim(),
+    inventoryBatchId: document.getElementById("prodProduct").dataset.inventoryBatchId || "",
     batchSize: document.getElementById("prodBatchSize").value.trim(),
     plannedDate: document.getElementById("prodPlannedDate").value,
     assignedStaff: document.getElementById("prodAssignedStaff").value.trim(),
@@ -1861,6 +1862,7 @@ document.getElementById("saveProductionBtn").addEventListener("click", () => {
   renderProduction();
   renderDashboard();
   ["prodClient", "prodProduct", "prodInventoryRef", "prodBatchSize", "prodPlannedDate", "prodAssignedStaff", "prodNotes"].forEach(id => document.getElementById(id).value = "");
+  delete document.getElementById("prodProduct").dataset.inventoryBatchId;
   document.getElementById("productionForm").style.display = "none";
   document.getElementById("prodInventoryRefHint").innerHTML = "";
   enqueue("createProduction", fields);
@@ -1880,12 +1882,35 @@ document.getElementById("productionFilter").addEventListener("click", (e) => {
 // having to re-type it. Only `batches` — actual production Inventory has
 // pushed to the employee view. `plans` is the Development Studio's
 // manager-only drafts, not yet pushed, and never shown here.
+//
+// Matching used to be by product NAME alone: once any OC record ever
+// referenced "Shea Body Butter 250ml", every later push of that same
+// product looked "already tracked" and silently never appeared again —
+// a routine repeat batch just vanished from the list with no error. Each
+// pushed batch now carries its own ID (set when "Track in Operations
+// Centre" is used — see saveProductionBtn), so a batch is only suppressed
+// once ITS OWN id has been tracked. For OC records created before that ID
+// was captured, fall back to the name match — but only when that record
+// predates this batch's own push; a record from a previous batch can't
+// possibly be tracking a push that came after it.
 function collectInventoryOnlyBatches() {
   const invCache = loadInventoryCache();
-  const trackedRefs = new Set((loadCache().production || []).map(p => (p.inventoryReference || "").toLowerCase()).filter(Boolean));
+  const production = loadCache().production || [];
+  const trackedBatchIds = new Set(production.map(p => p.inventoryBatchId).filter(Boolean));
+  const latestTrackedByName = {};
+  production.forEach(p => {
+    const name = (p.inventoryReference || "").toLowerCase();
+    if (!name || !p.createdDate) return;
+    if (!latestTrackedByName[name] || p.createdDate > latestTrackedByName[name]) latestTrackedByName[name] = p.createdDate;
+  });
   return (invCache.batches || []).filter(b => {
+    if (b.id && trackedBatchIds.has(b.id)) return false;
     const name = (b.name || b.productCode || "").toLowerCase();
-    return name && !trackedRefs.has(name);
+    if (!name) return false;
+    const lastTracked = latestTrackedByName[name];
+    if (!lastTracked) return true;
+    if (!b.pushedAt) return false;
+    return new Date(b.pushedAt) > new Date(lastTracked);
   });
 }
 function renderProduction() {
@@ -1903,7 +1928,7 @@ function renderProduction() {
     </div>`).join("");
   if (productionFilterStatus === "all") {
     html += collectInventoryOnlyBatches().map(b => `
-      <div class="record-row" data-type="invbatch" data-id="${escapeHtml(b.name || b.productCode)}">
+      <div class="record-row" data-type="invbatch" data-id="${escapeHtml(b.id || b.name || b.productCode)}">
         <div>
           <div class="rr-title">${escapeHtml(b.name || b.productCode || "Untitled batch")}</div>
           <div class="rr-meta">From Inventory${b.batchSize ? " · " + escapeHtml(b.batchSize) : ""}</div>
@@ -2637,13 +2662,19 @@ function describeRelatedRecord(value) {
   if (purchase) return "Purchase — " + purchase.item;
   return value;
 }
-// Finds the Inventory batch/plan a production reference points to.
-// Only `batches` — what Inventory has actually pushed to the employee
-// view. `plans` (Development Studio drafts) never surface in OC.
+// Finds the Inventory batch/plan a production reference points to. Only
+// `batches` — what Inventory has actually pushed to the employee view.
+// `plans` (Development Studio drafts) never surface in OC. `reference` is
+// either a specific batch's own unique ID (from an untracked-batch row —
+// see collectInventoryOnlyBatches) or, for the free-text Inventory
+// Reference field on an OC Production record, just a product name — try
+// the precise ID match first, then fall back to name.
 function findInventoryBatch(reference) {
   if (!reference) return null;
   const cache = loadInventoryCache();
-  return (cache.batches || []).find(b => (b.name || b.productCode || "").toLowerCase() === reference.toLowerCase()) || null;
+  const batches = cache.batches || [];
+  return batches.find(b => b.id === reference) ||
+    batches.find(b => (b.name || b.productCode || "").toLowerCase() === reference.toLowerCase()) || null;
 }
 // The real production sheet — phases and ingredient quantities, the way
 // Inventory itself shows it, not just a flat sufficiency check.
@@ -2696,6 +2727,7 @@ function openRecordModal(type, id) {
       document.getElementById("productionForm").style.display = "block";
       document.getElementById("prodProduct").value = name;
       document.getElementById("prodInventoryRef").value = name;
+      document.getElementById("prodProduct").dataset.inventoryBatchId = batch.id || "";
       if (batch.batchSize) document.getElementById("prodBatchSize").value = batch.batchSize;
       document.getElementById("prodProduct").scrollIntoView({ behavior: "smooth", block: "center" });
     });
