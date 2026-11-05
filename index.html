@@ -681,6 +681,11 @@
     </div>
     <button class="btn primary" id="newTeamFundTxBtn">+ Log Transaction</button>
     <div class="card" id="teamFundForm" style="display:none;">
+      <div class="form-grid">
+        <div><label>Date</label><input type="date" id="tfDate"></div>
+        <div><label>Time</label><input type="time" id="tfTime"></div>
+      </div>
+      <div class="hint" style="margin-top:0;">Defaults to right now — change it to log something that happened earlier.</div>
       <label>Direction</label>
       <select id="tfDirection"><option value="in">Money In (deposit)</option><option value="out">Money Out (expense)</option></select>
       <label>Amount</label><input type="number" step="0.01" min="0" id="tfAmount" placeholder="0.00">
@@ -2374,25 +2379,37 @@ document.getElementById("purchaseList").addEventListener("click", (e) => {
 // their own schedule in trySync(), independently of the other 9 reads.
 document.getElementById("newTeamFundTxBtn").addEventListener("click", () => {
   const form = document.getElementById("teamFundForm");
-  form.style.display = form.style.display === "none" ? "block" : "none";
+  const opening = form.style.display === "none";
+  form.style.display = opening ? "block" : "none";
+  // Defaults to the moment the form is opened — logging something that
+  // just happened is still a single step — but both are editable, so a
+  // transaction from earlier can be logged with its real date and time.
+  if (opening) {
+    const now = new Date();
+    document.getElementById("tfDate").value = now.toISOString().slice(0, 10);
+    document.getElementById("tfTime").value = now.toTimeString().slice(0, 5);
+  }
 });
 document.getElementById("saveTeamFundTxBtn").addEventListener("click", () => {
   const amount = Number(document.getElementById("tfAmount").value);
   const purpose = document.getElementById("tfPurpose").value.trim();
   if (!amount || amount <= 0) { document.getElementById("tfAmount").focus(); return; }
   if (!purpose) { document.getElementById("tfPurpose").focus(); return; }
+  const date = document.getElementById("tfDate").value;
+  const time = document.getElementById("tfTime").value;
+  if (!date) { document.getElementById("tfDate").focus(); return; }
+  if (!time) { document.getElementById("tfTime").focus(); return; }
   const direction = document.getElementById("tfDirection").value;
   const name = document.getElementById("tfName").value.trim();
   const number = document.getElementById("tfNumber").value.trim();
-  const payload = { direction: direction, amount: amount, purpose: purpose, name: name, number: number, staffName: currentWorker, tier: currentTier };
+  const payload = { direction: direction, amount: amount, purpose: purpose, name: name, number: number, date: date, time: time, staffName: currentWorker, tier: currentTier };
 
   const cache = loadCache();
   cache.teamFund = cache.teamFund || { balance: 0, recent: [] };
   const prevBalance = cache.teamFund.balance || 0;
   const newBalance = direction === "in" ? prevBalance + amount : prevBalance - amount;
-  const now = new Date().toISOString();
   cache.teamFund.recent = [{
-    date: now, time: now, name: name, number: number, purpose: purpose, staffName: currentWorker,
+    date: date, time: time, name: name, number: number, purpose: purpose, staffName: currentWorker,
     credit: direction === "in" ? amount : "", debit: direction === "out" ? amount : "", remaining: newBalance, pending: true
   }].concat(cache.teamFund.recent || []);
   cache.teamFund.balance = newBalance;

@@ -408,9 +408,13 @@ function handleLogTeamFundTransaction(payload) {
     var isCredit = payload.direction === "in";
     var prevBalance = lastTeamFundBalance_(sheet);
     var newBalance = isCredit ? prevBalance + amount : prevBalance - amount;
-    var now = new Date();
+    // Staff can log something after the fact (the form defaults to right
+    // now, but both are editable) — written as a real Date either way, so
+    // it picks up this column's own existing format automatically instead
+    // of needing to match it by hand.
+    var when = (payload.date && payload.time) ? new Date(payload.date + "T" + payload.time + ":00") : new Date();
     sheet.appendRow([
-      now, now,
+      when, when,
       payload.name || "", payload.number || "", payload.purpose || "",
       payload.staffName || payload.updatedBy || "",
       isCredit ? amount : "", isCredit ? "" : amount,
