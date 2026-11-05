@@ -793,7 +793,8 @@ async function callBackend(action, payload) {
   const res = await fetch(url, {
     method: "POST",
     body: JSON.stringify(payload || {}),
-    headers: { "Content-Type": "text/plain;charset=utf-8" }
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    cache: "no-store"
   });
   const text = await res.text();
   try {
@@ -803,9 +804,17 @@ async function callBackend(action, payload) {
   }
 }
 
+// cache: "no-store" matters here specifically — every call to the same
+// action hits the exact same URL (e.g. "...?action=getTeamFund") every
+// time, so without it the browser's own HTTP cache (independent of the
+// service worker, which already skips script.google.com entirely) can
+// serve back a stale response — including a stale ERROR — indefinitely
+// on a given device, long after the backend behind it has actually been
+// fixed. That's what made "Unknown action" outlive a redeploy by hours on
+// some devices while a freshly-opened one was already fine.
 async function fetchJSON(action) {
   if (!isConfigured()) throw new Error("SCRIPT_URL not set yet");
-  const res = await fetch(SCRIPT_URL + "?action=" + encodeURIComponent(action));
+  const res = await fetch(SCRIPT_URL + "?action=" + encodeURIComponent(action), { cache: "no-store" });
   return res.json();
 }
 
@@ -2598,8 +2607,8 @@ async function syncInventory() {
   const cache = loadInventoryCache();
   try {
     const [ingRes, prodRes] = await Promise.all([
-      fetch(INVENTORY_SCRIPT_URL + "?action=getIngredients").then(r => r.json()),
-      fetch(INVENTORY_SCRIPT_URL + "?action=getProductionData").then(r => r.json())
+      fetch(INVENTORY_SCRIPT_URL + "?action=getIngredients", { cache: "no-store" }).then(r => r.json()),
+      fetch(INVENTORY_SCRIPT_URL + "?action=getProductionData", { cache: "no-store" }).then(r => r.json())
     ]);
     if (ingRes.status === "ok") { cache.ingredients = ingRes.ingredients || []; cache.containers = ingRes.containers || []; }
     else throw new Error(ingRes.message || "getIngredients failed");
