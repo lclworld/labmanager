@@ -371,12 +371,19 @@ function handleGetTeamFund() {
   var lastRow = sheet.getLastRow();
   var recent = [];
   if (lastRow >= 2) {
+    // This sheet's own timezone, not OC's — it's a separate spreadsheet.
+    // Formatting Date cells explicitly (rather than .toISOString(), which
+    // reports UTC) avoids the exact "date shifts by a day" bug already
+    // found and fixed for Calendar in this project — a plain DATE cell
+    // has no real time of its own, so reading it as UTC midnight can
+    // land on the wrong calendar day once shifted to a local timezone.
+    var tz = sheet.getParent().getSpreadsheetTimeZone();
     var startRow = Math.max(2, lastRow - 24);
     var data = sheet.getRange(startRow, 1, lastRow - startRow + 1, 9).getValues();
     recent = data.map(function (r) {
       return {
-        date: r[0] instanceof Date ? r[0].toISOString() : String(r[0] || ""),
-        time: r[1] instanceof Date ? r[1].toISOString() : String(r[1] || ""),
+        date: r[0] instanceof Date ? Utilities.formatDate(r[0], tz, "yyyy-MM-dd") : String(r[0] || ""),
+        time: r[1] instanceof Date ? Utilities.formatDate(r[1], tz, "h:mm a") : String(r[1] || ""),
         name: r[2] || "", number: r[3] || "", purpose: r[4] || "",
         staffName: r[5] || "", credit: r[6] || "", debit: r[7] || "", remaining: r[8] || ""
       };

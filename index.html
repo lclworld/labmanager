@@ -1033,6 +1033,18 @@ function fmtDate(iso) {
   if (isNaN(d)) return iso;
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
+// For an actual moment something happened (a log entry, a transaction) —
+// fmtDate alone only ever showed the day, so two things logged hours
+// apart on the same day looked identical. Only meaningful for a real
+// timestamp, never a plain "yyyy-MM-dd" business date (deliveryDate,
+// plannedDate, ...), which has no time component to show.
+function fmtDateTime(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) +
+    ", " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
 function statusClass(s) {
   return "status-" + String(s || "").toLowerCase().replace(/[^a-z]/g, "");
 }
@@ -1126,7 +1138,7 @@ function renderDashboard() {
     hint("teamFundHint", teamFund.lastError ? "Tap to see why" : "Not set up yet — see SETUP.md");
   } else {
     const lastEntry = (teamFund.recent || [])[0];
-    hint("teamFundHint", lastEntry && lastEntry.date ? "Last updated " + fmtDate(lastEntry.date) : "Tap to view & log a transaction");
+    hint("teamFundHint", lastEntry && lastEntry.date ? "Last updated " + fmtDate(lastEntry.date) + (lastEntry.time ? ", " + lastEntry.time : "") : "Tap to view & log a transaction");
   }
 
   // Communications — the open conversations, by next step.
@@ -2414,7 +2426,7 @@ function renderTeamFund() {
     <div class="record-row" style="cursor:default;">
       <div>
         <div class="rr-title">${escapeHtml(r.purpose || "(no purpose)")}${r.name ? " — " + escapeHtml(r.name) : ""}</div>
-        <div class="rr-meta">${escapeHtml(r.staffName || "")}${r.date ? " · " + fmtDate(r.date) : ""}</div>
+        <div class="rr-meta">${escapeHtml(r.staffName || "")}${r.date ? " · " + fmtDate(r.date) + (r.time ? ", " + escapeHtml(r.time) : "") : ""}</div>
       </div>
       <div class="rr-right"><span class="pill ${isCredit ? "status-completed" : "status-blocked"}">${isCredit ? "+" : "-"}${escapeHtml(fmtNum(amount))}</span></div>
     </div>`;
@@ -2537,7 +2549,7 @@ function renderHistory() {
       <div class="record-row" style="cursor:default;">
         <div>
           <div class="rr-title">${escapeHtml(e.recordType)} ${escapeHtml(e.recordId)} — ${escapeHtml(e.action)}</div>
-          <div class="rr-meta">${escapeHtml(e.user || "Unknown")}${e.tier === "Manager" ? " <b>(Manager)</b>" : ""} · ${fmtDate(e.timestamp)}${e.previousStatus || e.newStatus ? " · " + escapeHtml(e.previousStatus || "") + " → " + escapeHtml(e.newStatus || "") : ""}</div>
+          <div class="rr-meta">${escapeHtml(e.user || "Unknown")}${e.tier === "Manager" ? " <b>(Manager)</b>" : ""} · ${fmtDateTime(e.timestamp)}${e.previousStatus || e.newStatus ? " · " + escapeHtml(e.previousStatus || "") + " → " + escapeHtml(e.newStatus || "") : ""}</div>
         </div>
       </div>`).join("");
     return;
@@ -2578,7 +2590,7 @@ function buildRecordHistoryHtml(recordId) {
     const what = escapeHtml(e.action + (e.newStatus ? " → " + e.newStatus : ""));
     const who = escapeHtml(e.user || "Unknown");
     const tag = e.tier === "Manager" ? " <b>(Manager)</b>" : "";
-    return `<div class="kv"><div class="k">${escapeHtml(fmtDate(e.timestamp))}</div><div class="v">${what} — ${who}${tag}</div></div>`;
+    return `<div class="kv"><div class="k">${escapeHtml(fmtDateTime(e.timestamp))}</div><div class="v">${what} — ${who}${tag}</div></div>`;
   }).join("");
   return `<div class="info-box"><div class="ib-label">History</div>${rows}</div>`;
 }
