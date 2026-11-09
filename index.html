@@ -2698,6 +2698,38 @@ function findRecord(type, id) {
   const idKey = RECORD_ID_KEYS[type];
   return arr.find(r => r[idKey] === id);
 }
+
+// An edit form always resends every one of its fields, touched or not
+// (see handleUpdateProduction's own comment on why) — so opening it on
+// data that's gone stale because this device simply hasn't synced in a
+// while (someone else updated the record from their own) means saving
+// ANY change silently puts the stale fields back too. That's exactly how
+// a PID status someone just set to "Completed" could keep reverting to
+// "Not Started" — a different device opens the record before it's ever
+// pulled that change, and the very next save stamps the old value back
+// over it. Pulling a fresh copy of just this one record type right
+// before the edit form is built closes nearly all of that window.
+const RECORD_REFRESH_ACTION = { task: "getTasks", event: "getCalendar", attention: "getDirectorAttention", communication: "getCommunications", production: "getProduction", delivery: "getDeliveries", purchase: "getPurchases" };
+const RECORD_REFRESH_EXTRACT = { task: r => r.tasks, event: r => r.events, attention: r => r.items, communication: r => r.items.map(normalizeCommunication), production: r => r.records, delivery: r => r.deliveries, purchase: r => r.purchases };
+async function refreshBeforeEdit(type) {
+  const action = RECORD_REFRESH_ACTION[type];
+  const arrayKey = RECORD_ARRAY_KEYS[type];
+  if (!action || !arrayKey || !navigator.onLine || !isConfigured()) return;
+  try {
+    const res = await fetchJSON(action);
+    if (res.status !== "ok") return;
+    const fresh = RECORD_REFRESH_EXTRACT[type](res);
+    const cache = loadCache();
+    const idKey = RECORD_ID_KEYS[type];
+    // Keep any record of this type whose create is still queued (not yet
+    // confirmed by the server) — the same rule trySync()'s own resync
+    // uses, so opening one record's edit modal can never make a
+    // different, still-unsynced new record vanish from its list.
+    const stillPending = (cache[arrayKey] || []).filter(r => r.pending && !fresh.some(f => f[idKey] === r[idKey]));
+    cache[arrayKey] = fresh.concat(stillPending);
+    saveCache(cache);
+  } catch (err) { /* offline or a backend hiccup — proceed with whatever's already cached, same as everywhere else in this app */ }
+}
 // "Related Record" is free text almost everywhere it's entered (so someone
 // can jot "PROD-0004" or just describe it by hand) — but where an
 // automation stored a real ID in it, show what it actually is instead of
@@ -2768,7 +2800,7 @@ function kv(k, v) {
   if (v === undefined || v === null || v === "") return "";
   return `<div class="kv"><div class="k">${escapeHtml(k)}</div><div class="v">${escapeHtml(v)}</div></div>`;
 }
-function openRecordModal(type, id) {
+async function openRecordModal(type, id) {
   if (type === "communication" && communicationsRestricted()) return;
   if (type === "invbatch") {
     const batch = findInventoryBatch(id);
@@ -2792,6 +2824,11 @@ function openRecordModal(type, id) {
     });
     return;
   }
+  // Pull a fresh copy of this record type before building the edit form —
+  // see refreshBeforeEdit's own comment for why this matters. Brief and
+  // only when actually online; offline or a slow/failed fetch just falls
+  // through to whatever's already cached, same as the rest of the app.
+  await refreshBeforeEdit(type);
   const rec = findRecord(type, id);
   if (!rec) return;
   document.getElementById("recordCard").innerHTML = buildRecordHtml(type, rec);
