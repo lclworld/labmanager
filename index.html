@@ -401,8 +401,9 @@
       <button class="btn primary" id="newTaskBtn">+ New Task</button>
       <div class="card" id="taskForm" style="display:none;">
         <label>Title</label><input id="taskTitle" placeholder="Task title">
+        <label>Assigned To</label>
+        <div class="filter-row" id="taskAssignedToPicker"></div>
         <div class="form-grid">
-          <div><label>Assigned To</label><select id="taskAssignedTo" data-staff="Unassigned"></select></div>
           <div><label>Due Date</label><input type="date" id="taskDueDate"></div>
           <div><label>Priority</label><select id="taskPriority"><option>Normal</option><option>Low</option><option>High</option><option>Urgent</option></select></div>
         </div>
@@ -750,6 +751,28 @@ function fillStaffSelects() {
   document.querySelectorAll("select[data-staff]").forEach(sel => {
     sel.innerHTML = `<option value="">${escapeHtml(sel.dataset.staff)}</option>` + STAFF.map(n => `<option>${n}</option>`).join("");
   });
+}
+// A Task can go to more than one person (unlike the single-owner/single-
+// responsible-person fields elsewhere), so this is a toggle-button picker
+// rather than a <select> — tap to add or remove someone, any number at
+// once. Stored as the same "Assigned To" column, just a comma-joined list.
+function fillTaskAssigneePicker() {
+  const picker = document.getElementById("taskAssignedToPicker");
+  if (!picker) return;
+  picker.innerHTML = STAFF.map(n => `<button type="button" data-name="${escapeHtml(n)}">${escapeHtml(n)}</button>`).join("");
+}
+function collectTaskAssignees() {
+  return Array.from(document.querySelectorAll("#taskAssignedToPicker button.active")).map(b => b.dataset.name).join(", ");
+}
+document.getElementById("taskAssignedToPicker").addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (btn) btn.classList.toggle("active");
+});
+// "Assigned to me" anywhere in the app means "I'm one of the people on
+// it", not an exact match against the whole (possibly multi-person) list.
+function taskAssignedToIncludes(assignedTo, name) {
+  if (!assignedTo || !name) return false;
+  return (assignedTo || "").split(",").map(s => s.trim().toLowerCase()).includes(name.toLowerCase());
 }
 
 function loadCache() {
@@ -1157,7 +1180,7 @@ function renderDashboard() {
   // Tasks — the open tasks, with what's due and whose.
   const openTasks = (cache.tasks || []).filter(t => notArchived(t) && t.status !== "Completed" && t.status !== "Cancelled");
   set("statTasks", openTasks.length);
-  const mine = openTasks.filter(t => (t.assignedTo || "").toLowerCase() === (currentWorker || "").toLowerCase()).length;
+  const mine = openTasks.filter(t => taskAssignedToIncludes(t.assignedTo, currentWorker)).length;
   hint("teamHint", footnote([
     nOf(openTasks.filter(t => t.dueDate && t.dueDate < today).length, "overdue"),
     nOf(openTasks.filter(t => t.dueDate === today).length, "due today"),
@@ -1224,7 +1247,7 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
     description: document.getElementById("taskDescription").value.trim(),
     category: document.getElementById("taskCategory").value,
     priority: document.getElementById("taskPriority").value,
-    assignedTo: document.getElementById("taskAssignedTo").value.trim(),
+    assignedTo: collectTaskAssignees(),
     createdBy: currentWorker,
     tier: currentTier,
     createdDate: now,
@@ -1247,7 +1270,8 @@ document.getElementById("saveTaskBtn").addEventListener("click", () => {
   if (flagForDirector) {
     flagDirectorForTask(localTask);
   }
-  ["taskTitle", "taskDescription", "taskAssignedTo", "taskDueDate", "taskNotes"].forEach(id => document.getElementById(id).value = "");
+  ["taskTitle", "taskDescription", "taskDueDate", "taskNotes"].forEach(id => document.getElementById(id).value = "");
+  document.querySelectorAll("#taskAssignedToPicker button.active").forEach(b => b.classList.remove("active"));
   document.getElementById("taskFlagDirector").checked = false;
   document.getElementById("taskForm").style.display = "none";
   enqueue("createTask", fields);
@@ -3260,6 +3284,7 @@ function startWorking(name) {
   syncInventory();
 }
 fillStaffSelects();
+fillTaskAssigneePicker();
 // After any "Save" closes its form, fold its "More details" back up for next time.
 document.querySelectorAll('button[id^="save"][id$="Btn"]').forEach(btn => btn.addEventListener("click", () => {
   const card = btn.closest(".card");
