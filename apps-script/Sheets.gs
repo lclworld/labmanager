@@ -124,13 +124,31 @@ var DATE_ONLY_KEYS = {
   deliveryDate: true, expectedArrival: true
 };
 
+// The sheet's OWN current header row, turned into keys — the one true
+// source for "which column is which field," used by every read AND
+// write below. Never SCHEMA's own array order: SCHEMA only has to match
+// the sheet's headers by NAME (ensureSheet bridges in anything missing),
+// never by position, and a real sheet that's grown over many sessions
+// can easily end up with a different column order than SCHEMA's array —
+// a manually inserted or reordered column, a field added out of append
+// order in some earlier version. appendRow/updateRecord using SCHEMA's
+// order instead of this were writing into whatever column SCHEMA
+// happened to think a field was at, regardless of where it actually
+// lives on the real sheet — the exact bug behind a field that looks like
+// it's saved (no error, the sheet writes without complaint) but always
+// reads back as if it never changed, because the write landed in a
+// different column entirely.
+function headerKeys_(sheet) {
+  var lastCol = sheet.getLastColumn();
+  return sheet.getRange(1, 1, 1, lastCol).getValues()[0].map(headerToKey);
+}
+
 function getAllRows(name) {
   var sheet = ensureSheet(name);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   var lastCol = sheet.getLastColumn();
-  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  var keys = headers.map(headerToKey);
+  var keys = headerKeys_(sheet);
   var values = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   var tz = getSpreadsheet().getSpreadsheetTimeZone();
   return values.map(function (row) {
@@ -170,7 +188,7 @@ function nextId(name) {
 
 function appendRow(name, rowObject) {
   var sheet = ensureSheet(name);
-  var keys = SCHEMA[name].map(headerToKey);
+  var keys = headerKeys_(sheet);
   var row = keys.map(function (key) {
     return rowObject.hasOwnProperty(key) ? rowObject[key] : "";
   });
@@ -215,7 +233,7 @@ function updateRecord(name, idValue, fields) {
   lock.waitLock(10000);
   try {
     var sheet = ensureSheet(name);
-    var keys = SCHEMA[name].map(headerToKey);
+    var keys = headerKeys_(sheet);
     var lastRow = sheet.getLastRow();
     if (lastRow < 2) return false;
     var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
